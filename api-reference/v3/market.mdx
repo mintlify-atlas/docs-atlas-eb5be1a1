@@ -314,6 +314,27 @@ const tiers = await client.getPositionTier({
 
 ---
 
+## getMarketScoreWeights(params)
+
+Returns the market-maker score weights per symbol used in Bitget's maker rebate programme. The `category` filter is optional; omit it to retrieve weights for all categories.
+
+**Endpoint:** `GET /api/v3/market/score-weights`
+
+<ParamField query="category" type="string">
+  Optional category filter: `SPOT` or `FUTURES`.
+</ParamField>
+
+```typescript
+// All categories
+const weights = await client.getMarketScoreWeights();
+
+// Futures only
+const futuresWeights = await client.getMarketScoreWeights({ category: 'FUTURES' });
+console.log('Score weights:', futuresWeights.data);
+```
+
+---
+
 ## getMarketFeeGroup(params)
 
 Queries the fee rate tiers and groupings for a given market category.

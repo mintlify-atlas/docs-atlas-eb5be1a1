@@ -27,8 +27,8 @@ const wsClient = new WebsocketClientV2({
 });
 
 // Proactively connect both sockets instead of waiting for the first subscription
-const [publicConn, privateConn] = wsClient.connectAll();
-await Promise.all([publicConn, privateConn]);
+const [privateConn, publicConn] = wsClient.connectAll();
+await Promise.all([privateConn, publicConn]);
 ```
 
 ---

@@ -1,5 +1,5 @@
 ---
-title: "RestClientV2: Bitget Classic REST API Reference"
+title: "RestClientV2: Bitget Classic Account REST API Reference"
 sidebarTitle: "REST Client V2"
 description: "Use RestClientV2 to call Bitget's V2 REST APIs covering spot, futures, margin, copy trading, broker, earn, and sub-account management."
 ---
@@ -49,6 +49,40 @@ description: "Use RestClientV2 to call Bitget's V2 REST APIs covering spot, futu
 <Note>
   Credentials are entirely optional when you only need public market data. Calling private endpoints without credentials will result in an authentication error.
 </Note>
+
+---
+
+## Constructor Options
+
+The `RestClientV2` constructor accepts an optional `RestClientOptions` object.
+
+<ParamField body="apiKey" type="string">
+  Your Bitget API key. Required for all authenticated (private) endpoints.
+</ParamField>
+
+<ParamField body="apiSecret" type="string">
+  Your Bitget API secret. Used to sign request payloads.
+</ParamField>
+
+<ParamField body="apiPass" type="string">
+  The passphrase you set when creating the API key — **not** your account login password.
+</ParamField>
+
+<ParamField body="demoTrading" type="boolean" default="false">
+  Set to `true` to connect to Bitget's [demo trading](https://www.bitget.com/api-doc/common/demotrading/restapi) environment. All requests will be routed to the paper-trading sandbox.
+</ParamField>
+
+<ParamField body="recvWindow" type="number">
+  Override the maximum request window size in milliseconds. Controls the timestamp tolerance for signed requests.
+</ParamField>
+
+<ParamField body="baseUrl" type="string">
+  Override the default REST base URL. Defaults to `https://api.bitget.com`. Useful for proxies or regional endpoints.
+</ParamField>
+
+<ParamField body="customSignMessageFn" type="(message: string, secret: string) => Promise<string>">
+  Provide a custom HMAC signing function. Useful for improving performance by substituting Node's built-in `crypto.createHmac` instead of the default Web Crypto implementation. See the `examples/auth/` folder for a reference implementation.
+</ParamField>
 
 ---
 

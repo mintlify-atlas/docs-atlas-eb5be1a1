@@ -1,5 +1,5 @@
 ---
-title: "Authenticate with Bitget API: Keys and Signing"
+title: "Bitget API Authentication: Keys, HMAC, and RSA Signing"
 sidebarTitle: "Authentication"
 description: "Configure API key authentication for bitget-api using HMAC or RSA signing, including how to pass credentials and use a custom sign function."
 ---
@@ -58,7 +58,7 @@ Pass credentials and configuration to any client constructor via the `RestClient
 </ParamField>
 
 <ParamField path="apiPass" type="string">
-  The passphrase you chose when creating the API key. Optional for public endpoints; required for authenticated calls.
+  The passphrase you chose when creating the API key. This is **not** your Bitget account login password — it is the separate passphrase set at API key creation time. Optional for public endpoints; required for authenticated calls.
 </ParamField>
 
 <ParamField path="demoTrading" type="boolean" default="false">
@@ -71,6 +71,26 @@ Pass credentials and configuration to any client constructor via the `RestClient
 
 <ParamField path="baseUrl" type="string">
   Override the REST API base URL. Defaults to `https://api.bitget.com`. Useful when routing through a proxy or a custom gateway.
+</ParamField>
+
+<ParamField path="strictParamValidation" type="boolean" default="false">
+  When `true`, the SDK throws an error if any request parameter is `undefined`. Useful during development to catch accidental omissions before they reach the API.
+</ParamField>
+
+<ParamField path="encodeQueryStringValues" type="boolean" default="true">
+  When `true` (the default), query string values are URI-encoded via `encodeURIComponent`. Disable only if you are pre-encoding values yourself; leaving this enabled prevents signature errors caused by special characters in parameter values.
+</ParamField>
+
+<ParamField path="parseExceptions" type="boolean" default="true">
+  When `true` (the default), the SDK post-processes API error responses and throws them as structured exceptions. Set to `false` to receive raw error responses instead.
+</ParamField>
+
+<ParamField path="keepAlive" type="boolean">
+  Enable HTTP keep-alive for REST API requests via the underlying axios agent. Reuses TCP connections across requests, which can reduce latency at high call rates.
+</ParamField>
+
+<ParamField path="keepAliveMsecs" type="number" default="1000">
+  When `keepAlive` is `true`, controls how often (in milliseconds) TCP keep-alive packets are sent on idle sockets. Only relevant when `keepAlive` is enabled. Defaults to `1000` ms.
 </ParamField>
 
 ## HMAC Authentication

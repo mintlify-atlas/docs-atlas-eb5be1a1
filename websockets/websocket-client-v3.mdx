@@ -1,10 +1,10 @@
 ---
 title: "WebsocketClientV3: Bitget UTA Real-Time Data Streams"
 sidebarTitle: "WS Client V3"
-description: "Subscribe to Bitget V3/UTA WebSocket topics including ticker, kline, order book, account, positions, orders, and fills using WebsocketClientV3."
+description: "Subscribe to Bitget V3/UTA WebSocket topics for market data and private events — ticker, kline, books, account, position, order, and fill updates."
 ---
 
-`WebsocketClientV3` is the WebSocket client for Bitget's Unified Trading Account (V3) real-time data streams. It manages two persistent connections — one public and one private — and handles authentication, heartbeats, and automatic reconnection transparently. If your Bitget account has been upgraded to Unified Account mode, this is the client you should use for both market data and private account events.
+`WebsocketClientV3` is the WebSocket client for Bitget's Unified Trading Account (V3) real-time data streams. It manages two persistent connections — one public and one private — and handles authentication, heartbeats, and automatic reconnection transparently. If your Bitget account has been upgraded to Unified Account mode, this is the client you should use for both market data and private account events such as account balance, position, order, and fill updates.
 
 ## Installation
 
@@ -28,7 +28,7 @@ const wsClient = new WebsocketClientV3({});
 
 ### Authenticated client
 
-For private topics (account, orders, positions, fills), supply your API key, secret, and passphrase:
+For private topics (account, position, order, fill, strategy-order), supply your API key, secret, and passphrase:
 
 ```typescript
 import { WebsocketClientV3 } from 'bitget-api';

@@ -151,7 +151,6 @@ const subscribeResult = await client.earnSubscribeSavings({
   productId: products.data[0].productId,
   periodType: 'flexible',
   amount: '100',
-  coin: 'USDT',
 });
 console.log('Subscribe result:', subscribeResult.data);
 ```
@@ -210,17 +209,19 @@ const client = new RestClientV2({
 
 // Create a new sub-account
 const newSub = await client.createSubaccount({
-  subAccountName: 'trading-bot-1',
+  subaccountName: 'trading-bot-1',
+  label: 'Bot account',
 });
 console.log('Created sub-account:', newSub.data);
 
 // Create an API key for it
 const apiKey = await client.createSubaccountApiKey({
-  subAccountName: 'trading-bot-1',
+  subUid: newSub.data.subUid,
   passphrase: 'SecurePass!123',
-  remark: 'Bot trading key',
+  label: 'Bot trading key',
   ipList: ['203.0.113.42'],
-  perm: 'trade',
+  permType: 'trade',
+  permList: ['trade'],
 });
 console.log('Sub-account API key:', apiKey.data);
 ```

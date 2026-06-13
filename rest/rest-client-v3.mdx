@@ -1,7 +1,7 @@
 ---
 title: "RestClientV3: Bitget Unified Trading Account REST API"
 sidebarTitle: "REST Client V3"
-description: "Use RestClientV3 to access Bitget's V3/UTA REST APIs for market data, account management, trading, copy trading, earn, and more."
+description: "Use RestClientV3 to access Bitget's V3/UTA REST APIs for market data, account management, unified trading, copy trading, earn, and more."
 ---
 
 `RestClientV3` is the primary REST client for Bitget's **Unified Trading Account (UTA)** platform. It targets Bitget's `/api/v3/` endpoints, which consolidate spot, futures, and margin into a single account model. If your Bitget account has been upgraded to UTA, this is the client you should use for all REST API calls — from public market data all the way through to order management, copy trading, and earn products.
@@ -67,6 +67,10 @@ The `RestClientV3` constructor accepts an optional `RestClientOptions` object.
 
 <ParamField body="baseUrl" type="string">
   Override the default REST base URL. Defaults to `https://api.bitget.com`. Useful for proxies or regional endpoints.
+</ParamField>
+
+<ParamField body="recvWindow" type="number">
+  Override the maximum request window size in milliseconds. Controls the timestamp tolerance for signed requests.
 </ParamField>
 
 <ParamField body="customSignMessageFn" type="(message: string, secret: string) => Promise<string>">

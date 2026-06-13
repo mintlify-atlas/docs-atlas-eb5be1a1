@@ -381,7 +381,7 @@ Transfers funds between spot/funding and the copy-trading lead account.
   Transfer amount.
 </ParamField>
 
-<ParamField body="transferType" type="string" required>
+<ParamField body="type" type="string" required>
   Direction of the transfer — `in` (to lead account) or `out` (from lead account).
 </ParamField>
 
@@ -389,7 +389,7 @@ Transfers funds between spot/funding and the copy-trading lead account.
 await client.copyFuturesTransfer({
   coin: 'USDT',
   amount: '500',
-  transferType: 'in',
+  type: 'in',
 });
 ```
 

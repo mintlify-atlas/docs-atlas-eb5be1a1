@@ -1,7 +1,7 @@
 ---
 title: "WebsocketClientV2: Bitget Classic WebSocket Streams"
 sidebarTitle: "WS Client V2"
-description: "Subscribe to Bitget V2 WebSocket topics for spot and futures market data and private account events using WebsocketClientV2."
+description: "Subscribe to Bitget V2 WebSocket topics for spot and futures market data and private account events — tickers, candles, books, orders, and positions."
 ---
 
 `WebsocketClientV2` provides real-time WebSocket streams for Bitget's classic (non-UTA) spot and futures accounts. It handles two separate connections — a public one for market data and a private one for account events — and takes care of authentication, heartbeat management, and automatic reconnection for you. If your account has **not** been upgraded to Unified Account mode, this is the correct client for live market data and order tracking.
@@ -139,7 +139,7 @@ The `coin` parameter is the instrument ID for market data topics (e.g. `'BTCUSDT
 
 ## Public Topics (`WsPublicTopicV2`)
 
-Public topics stream market data and require no authentication. Use `instType` values such as `'SPOT'`, `'USDT-FUTURES'`, `'COIN-FUTURES'`, or `'USDC-FUTURES'`.
+Public topics stream market data and require no authentication. Valid `instType` values are `'SPOT'`, `'USDT-FUTURES'`, `'COIN-FUTURES'`, `'USDC-FUTURES'`, `'SUSDT-FUTURES'`, `'SCOIN-FUTURES'`, and `'SUSDC-FUTURES'` (the `S`-prefixed variants are for simulated/demo trading).
 
 | Topic            | Description                                       |
 | ---------------- | ------------------------------------------------- |
@@ -161,6 +161,12 @@ Public topics stream market data and require no authentication. Use `instType` v
 | `candle3D`       | 3-day OHLCV candlestick                           |
 | `candle1W`       | 1-week OHLCV candlestick                          |
 | `candle1M`       | 1-month OHLCV candlestick                         |
+| `candle6Hutc`    | 6-hour OHLCV candlestick (UTC aligned)            |
+| `candle12Hutc`   | 12-hour OHLCV candlestick (UTC aligned)           |
+| `candle1Dutc`    | 1-day OHLCV candlestick (UTC aligned)             |
+| `candle3Dutc`    | 3-day OHLCV candlestick (UTC aligned)             |
+| `candle1Wutc`    | 1-week OHLCV candlestick (UTC aligned)            |
+| `candle1Mutc`    | 1-month OHLCV candlestick (UTC aligned)           |
 | `index-price`    | Index price (margin trading only)                 |
 
 ### Public Subscribe Example
