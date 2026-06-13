@@ -1,47 +1,219 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with bitget-api in Minutes"
+sidebarTitle: "Quickstart"
+description: "Install bitget-api and make your first REST API call and WebSocket subscription to Bitget in under five minutes with this step-by-step guide."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
-
-<Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
-
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
-
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
-
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+This guide walks you through installing `bitget-api`, creating your API credentials on Bitget, making your first authenticated REST API call with `RestClientV3`, and subscribing to a live ticker stream over WebSocket. By the end you will have a working Node.js or TypeScript script that communicates with the Bitget exchange in real time.
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  For read-only public market data — such as candles, tickers, and order books — you can omit API credentials entirely and call the client without passing any options.
 </Tip>
+
+<Steps>
+
+### Install the package
+
+Add `bitget-api` to your project using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npm install bitget-api
+```
+
+```bash yarn
+yarn add bitget-api
+```
+
+```bash pnpm
+pnpm add bitget-api
+```
+
+</CodeGroup>
+
+The package ships CommonJS, ESM, and TypeScript declaration files — no additional type packages are needed.
+
+### Get your API credentials
+
+Log in to your Bitget account and navigate to the [API Management](https://www.bitget.com/en/support/articles/360011132814-How-to-create-API) page to create a new API key. You will receive three values that the SDK requires for authenticated calls:
+
+- **API Key** (`apiKey`) — the public identifier for your key.
+- **API Secret** (`apiSecret`) — used to sign every request; treat this like a password.
+- **API Passphrase** (`apiPass`) — the passphrase you set when creating the key (this is **not** your account login password).
+
+Store all three as environment variables so they are never hardcoded in your source files:
+
+```bash
+export API_KEY_COM="your_api_key"
+export API_SECRET_COM="your_api_secret"
+export API_PASS_COM="your_api_passphrase"
+```
+
+If you want to test without risking real funds, Bitget provides a [Demo Trading environment](https://www.bitget.com/en/demo-trading). Create a separate set of API keys there and set `demoTrading: true` when instantiating the client (see [Authentication](/authentication) for details).
+
+### Make your first REST API call
+
+The example below uses `RestClientV3`, which targets Bitget's latest Unified Trading Account (UTA) API. If your account has not been upgraded to UTA yet, substitute `RestClientV2` and its equivalent methods.
+
+<CodeGroup>
+
+```typescript TypeScript (ESM)
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY_COM,
+  apiSecret: process.env.API_SECRET_COM,
+  apiPass: process.env.API_PASS_COM,
+});
+
+(async () => {
+  try {
+    // Public endpoint — fetch 1-minute BTCUSDT candles (no credentials required)
+    const candles = await client.getCandles({
+      symbol: 'BTCUSDT',
+      category: 'SPOT',
+      interval: '1m',
+    });
+
+    console.table(candles.data);
+    console.log('Candle count:', candles.data.length);
+
+    // Private endpoint — fetch your account balances
+    const balances = await client.getBalances();
+    console.log('Balances:', JSON.stringify(balances, null, 2));
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+```javascript CommonJS (require)
+const { RestClientV3 } = require('bitget-api');
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY_COM,
+  apiSecret: process.env.API_SECRET_COM,
+  apiPass: process.env.API_PASS_COM,
+});
+
+(async () => {
+  try {
+    // Public endpoint — fetch 1-minute BTCUSDT candles (no credentials required)
+    const candles = await client.getCandles({
+      symbol: 'BTCUSDT',
+      category: 'SPOT',
+      interval: '1m',
+    });
+
+    console.table(candles.data);
+    console.log('Candle count:', candles.data.length);
+
+    // Private endpoint — fetch your account balances
+    const balances = await client.getBalances();
+    console.log('Balances:', JSON.stringify(balances, null, 2));
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+</CodeGroup>
+
+Run the script and you should see a table of recent BTCUSDT candles printed to your terminal, followed by your account balance data.
+
+### Subscribe to a WebSocket stream
+
+`WebsocketClientV3` provides a persistent, auto-reconnecting WebSocket connection to Bitget's V3 real-time feeds. The client emits typed events — `update`, `open`, `response`, `reconnect`, `reconnected`, and `exception` — that you handle with standard `.on()` listeners.
+
+<CodeGroup>
+
+```typescript TypeScript (ESM)
+import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3();
+
+// Handle incoming real-time messages
+wsClient.on('update', (data) => {
+  console.log('WS update received:', data);
+});
+
+wsClient.on('open', (data) => {
+  console.log('WS connection opened:', data.wsKey);
+});
+
+wsClient.on('reconnect', ({ wsKey }) => {
+  console.log('WS reconnecting...', wsKey);
+});
+
+wsClient.on('reconnected', (data) => {
+  console.log('WS reconnected:', data?.wsKey);
+});
+
+wsClient.on('exception', (data) => {
+  console.error('WS error:', data);
+});
+
+// Subscribe to the BTCUSDT spot ticker on the public channel
+wsClient.subscribe(
+  {
+    topic: 'ticker',
+    payload: {
+      instType: 'spot',
+      symbol: 'BTCUSDT',
+    },
+  },
+  WS_KEY_MAP.v3Public,
+);
+```
+
+```javascript CommonJS (require)
+const { WebsocketClientV3, WS_KEY_MAP } = require('bitget-api');
+
+const wsClient = new WebsocketClientV3();
+
+// Handle incoming real-time messages
+wsClient.on('update', (data) => {
+  console.log('WS update received:', data);
+});
+
+wsClient.on('open', (data) => {
+  console.log('WS connection opened:', data.wsKey);
+});
+
+wsClient.on('reconnect', ({ wsKey }) => {
+  console.log('WS reconnecting...', wsKey);
+});
+
+wsClient.on('reconnected', (data) => {
+  console.log('WS reconnected:', data?.wsKey);
+});
+
+wsClient.on('exception', (data) => {
+  console.error('WS error:', data);
+});
+
+// Subscribe to the BTCUSDT spot ticker on the public channel
+wsClient.subscribe(
+  {
+    topic: 'ticker',
+    payload: {
+      instType: 'spot',
+      symbol: 'BTCUSDT',
+    },
+  },
+  WS_KEY_MAP.v3Public,
+);
+```
+
+</CodeGroup>
+
+The `WS_KEY_MAP.v3Public` constant routes the subscription to the correct public WebSocket endpoint. Use `WS_KEY_MAP.v3Private` when subscribing to private topics such as orders, positions, or account updates — those require API credentials passed to the `WebsocketClientV3` constructor.
+
+</Steps>
+
+## Next Steps
+
+- Read the [Authentication](/authentication) guide to understand API key options, RSA signing, and the `customSignMessageFn` performance optimisation.
+- Browse the [examples](https://github.com/tiagosiebler/bitget-api/tree/master/examples) folder on GitHub for complete demonstrations of every client class.
+- Join the [Node.js Algo Traders](https://t.me/nodetraders) Telegram community for help, ideas, and collaboration.

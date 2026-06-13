@@ -1,0 +1,408 @@
+---
+title: "V3 Market Data API: Tickers, Candles, Order Books"
+sidebarTitle: "Market Data"
+description: "RestClientV3 public market data methods for instruments, tickers, order books, candles, funding rates, and open interest on Bitget V3/UTA."
+---
+
+The `RestClientV3` exposes a full suite of **public market data** methods that require no API key authentication. These endpoints cover every aspect of exchange data: live and historical candles, real-time order books, funding rates, open interest, position tier limits, margin loan rates, and index price components — all through the unified V3/UTA REST interface. Call them directly after instantiating the client with no credentials.
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3();
+```
+
+---
+
+## getServerTime()
+
+Returns the current Bitget server timestamp in milliseconds as a string. Use this to confirm connectivity and synchronise your local clock before placing orders.
+
+**Endpoint:** `GET /api/v3/public/time`
+
+```typescript
+const response = await client.getServerTime();
+console.log('Server time (ms):', response.data.serverTime);
+```
+
+---
+
+## getInstruments(params)
+
+Returns a list of trading instruments available on Bitget for the specified category. Each entry contains the symbol, quote/base coins, contract size, tick size, min order quantity, and trading status.
+
+**Endpoint:** `GET /api/v3/market/instruments`
+
+<ParamField query="category" type="string" required>
+  Market category. One of `SPOT`, `MARGIN`, `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="symbol" type="string">
+  Optional symbol filter, e.g. `BTCUSDT`. Omit to retrieve all instruments in the category.
+</ParamField>
+
+```typescript
+const instruments = await client.getInstruments({ category: 'USDT-FUTURES' });
+console.log('Instruments:', instruments.data.length);
+
+// Filter to one symbol
+const btcInstrument = await client.getInstruments({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+});
+```
+
+---
+
+## getTickers(params)
+
+Fetches live ticker snapshots — last price, 24-hour volume, bid/ask, funding rate for futures — for one or all symbols in a category.
+
+**Endpoint:** `GET /api/v3/market/tickers`
+
+<ParamField query="category" type="string" required>
+  Market category: `SPOT`, `USDT-FUTURES`, `COIN-FUTURES`, or `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="symbol" type="string">
+  Optional single-symbol filter, e.g. `ETHUSDT`.
+</ParamField>
+
+```typescript
+// All USDT-futures tickers
+const tickers = await client.getTickers({ category: 'USDT-FUTURES' });
+tickers.data.forEach((t) => console.log(t.symbol, t.lastPr));
+
+// Single spot ticker
+const ethTicker = await client.getTickers({
+  category: 'SPOT',
+  symbol: 'ETHUSDT',
+});
+```
+
+---
+
+## getOrderBook(params)
+
+Returns the current order book (bids and asks) for a given symbol up to the requested depth.
+
+**Endpoint:** `GET /api/v3/market/orderbook`
+
+<ParamField query="category" type="string" required>
+  Market category: `SPOT`, `USDT-FUTURES`, `COIN-FUTURES`, or `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="symbol" type="string" required>
+  Trading symbol, e.g. `BTCUSDT`.
+</ParamField>
+
+<ParamField query="limit" type="string">
+  Number of price levels per side. Defaults to `150`; maximum varies by category.
+</ParamField>
+
+```typescript
+const orderBook = await client.getOrderBook({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+  limit: '20',
+});
+
+console.log('Best bid:', orderBook.data.bids[0]);
+console.log('Best ask:', orderBook.data.asks[0]);
+```
+
+---
+
+## getFills(params)
+
+Returns recent public trade fills (market trades) for a symbol. This data is unauthenticated and shows the latest executed trades across the order book.
+
+**Endpoint:** `GET /api/v3/market/fills`
+
+<ParamField query="category" type="string" required>
+  One of `SPOT`, `MARGIN`, `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="symbol" type="string">
+  Symbol filter, e.g. `BTCUSDT`. Omit to retrieve fills across all symbols.
+</ParamField>
+
+<ParamField query="limit" type="string">
+  Maximum number of results to return.
+</ParamField>
+
+```typescript
+const recentTrades = await client.getFills({
+  category: 'SPOT',
+  symbol: 'BTCUSDT',
+  limit: '50',
+});
+recentTrades.data.forEach((fill) =>
+  console.log(fill.price, fill.size, fill.side),
+);
+```
+
+---
+
+## getCandles(params)
+
+Returns OHLCV candlestick data for a symbol. Maximum 1,000 candles per request. Supports multiple price types (market, mark, index).
+
+**Endpoint:** `GET /api/v3/market/candles`
+
+<ParamField query="category" type="string" required>
+  One of `SPOT`, `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="symbol" type="string" required>
+  Trading symbol, e.g. `BTCUSDT`.
+</ParamField>
+
+<ParamField query="interval" type="string" required>
+  Candle interval. Valid values: `1m`, `3m`, `5m`, `15m`, `30m`, `1H`, `4H`, `6H`, `12H`, `1D`.
+</ParamField>
+
+<ParamField query="startTime" type="string">
+  Unix timestamp in milliseconds for the start of the range.
+</ParamField>
+
+<ParamField query="endTime" type="string">
+  Unix timestamp in milliseconds for the end of the range.
+</ParamField>
+
+<ParamField query="type" type="string">
+  Price type: `MARKET` (default), `MARK`, or `INDEX`.
+</ParamField>
+
+<ParamField query="limit" type="string">
+  Number of candles to return. Maximum `1000`.
+</ParamField>
+
+```typescript
+const candles = await client.getCandles({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+  interval: '1H',
+  limit: '100',
+});
+
+candles.data.forEach(([ts, open, high, low, close, vol]) =>
+  console.log(new Date(Number(ts)).toISOString(), close),
+);
+```
+
+---
+
+## getHistoryCandles(params)
+
+Retrieves historical OHLCV candlestick data for a symbol beyond the standard candles window. Parameters are identical to `getCandles`.
+
+**Endpoint:** `GET /api/v3/market/history-candles`
+
+```typescript
+const historyCandles = await client.getHistoryCandles({
+  category: 'USDT-FUTURES',
+  symbol: 'ETHUSDT',
+  interval: '1D',
+  startTime: '1700000000000',
+  endTime: '1710000000000',
+});
+```
+
+---
+
+## getCurrentFundingRate(params)
+
+Returns the current (next settlement) funding rate for a futures symbol.
+
+**Endpoint:** `GET /api/v3/market/current-fund-rate`
+
+<ParamField query="symbol" type="string" required>
+  Futures symbol, e.g. `BTCUSDT`.
+</ParamField>
+
+```typescript
+const fundingRate = await client.getCurrentFundingRate({ symbol: 'BTCUSDT' });
+console.log('Current funding rate:', fundingRate.data[0].fundingRate);
+```
+
+---
+
+## getHistoryFundingRate(params)
+
+Returns historical funding rate records for a futures symbol, paginated via cursor.
+
+**Endpoint:** `GET /api/v3/market/history-fund-rate`
+
+<ParamField query="category" type="string" required>
+  One of `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="symbol" type="string" required>
+  Futures symbol, e.g. `BTCUSDT`.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Pagination cursor for the next page of results.
+</ParamField>
+
+<ParamField query="limit" type="string">
+  Maximum number of records to return.
+</ParamField>
+
+```typescript
+const history = await client.getHistoryFundingRate({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+  limit: '50',
+});
+history.data.forEach((r) =>
+  console.log(r.fundingTime, r.fundingRate),
+);
+```
+
+---
+
+## getOpenInterest(params)
+
+Returns the total open interest for a futures category, optionally filtered by symbol.
+
+**Endpoint:** `GET /api/v3/market/open-interest`
+
+<ParamField query="category" type="string" required>
+  One of `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="symbol" type="string">
+  Optional symbol filter, e.g. `BTCUSDT`.
+</ParamField>
+
+```typescript
+const oi = await client.getOpenInterest({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+});
+console.log('Open interest:', oi.data);
+```
+
+---
+
+## getPositionTier(params)
+
+Returns position tier information (leverage brackets, margin requirements, max position size) for a category.
+
+**Endpoint:** `GET /api/v3/market/position-tier`
+
+<ParamField query="category" type="string" required>
+  One of `MARGIN`, `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="symbol" type="string">
+  Optional symbol filter.
+</ParamField>
+
+<ParamField query="coin" type="string">
+  Optional base coin filter, e.g. `BTC`.
+</ParamField>
+
+```typescript
+const tiers = await client.getPositionTier({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+});
+```
+
+---
+
+## getMarketFeeGroup(params)
+
+Queries the fee rate tiers and groupings for a given market category.
+
+**Endpoint:** `GET /api/v3/market/fee-group`
+
+<ParamField query="category" type="string" required>
+  `SPOT` or `FUTURES`.
+</ParamField>
+
+<ParamField query="group" type="string">
+  Optional group filter: `GROUP_A`, `GROUP_B`, or `GROUP_C`.
+</ParamField>
+
+```typescript
+const feeGroups = await client.getMarketFeeGroup({ category: 'FUTURES' });
+```
+
+---
+
+## getMarginLoans(params)
+
+Returns margin loan rate information for a specific coin.
+
+**Endpoint:** `GET /api/v3/market/margin-loans`
+
+<ParamField query="coin" type="string" required>
+  The coin symbol to query loan rates for, e.g. `USDT`, `BTC`.
+</ParamField>
+
+```typescript
+const loanRates = await client.getMarginLoans({ coin: 'USDT' });
+```
+
+---
+
+## getIndexComponents(params)
+
+Returns the component assets and their weights that make up a Bitget index price.
+
+**Endpoint:** `GET /api/v3/market/index-components`
+
+<ParamField query="symbol" type="string" required>
+  The index symbol, e.g. `BTCUSDT`.
+</ParamField>
+
+```typescript
+const components = await client.getIndexComponents({ symbol: 'BTCUSDT' });
+console.log('Index components:', components.data);
+```
+
+---
+
+## Comprehensive Market Data Example
+
+The following example demonstrates fetching multiple public data points in parallel using `Promise.all`:
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3();
+
+async function fetchMarketSnapshot(symbol: string) {
+  const [serverTime, ticker, orderBook, fundingRate, openInterest, candles] =
+    await Promise.all([
+      client.getServerTime(),
+      client.getTickers({ category: 'USDT-FUTURES', symbol }),
+      client.getOrderBook({ category: 'USDT-FUTURES', symbol, limit: '10' }),
+      client.getCurrentFundingRate({ symbol }),
+      client.getOpenInterest({ category: 'USDT-FUTURES', symbol }),
+      client.getCandles({
+        category: 'USDT-FUTURES',
+        symbol,
+        interval: '1H',
+        limit: '24',
+      }),
+    ]);
+
+  return {
+    serverTime: serverTime.data.serverTime,
+    lastPrice: ticker.data[0]?.lastPr,
+    bestBid: orderBook.data.bids[0],
+    bestAsk: orderBook.data.asks[0],
+    fundingRate: fundingRate.data[0]?.fundingRate,
+    openInterest: openInterest.data,
+    last24hCandles: candles.data.length,
+  };
+}
+
+const snapshot = await fetchMarketSnapshot('BTCUSDT');
+console.log(snapshot);
+```

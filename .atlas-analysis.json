@@ -1,28 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "Bitget API Node.js SDK",
+  "projectType": "sdk-library",
+  "projectName": "Bitget API Node.js SDK",
+  "projectDescription": "A professional, fully-typed Node.js & TypeScript SDK for Bitget's V2 and V3/UTA REST APIs and WebSockets, with browser support.",
   "theme": "luma",
-  "colors": {
-    "primary": "#0d152d",
-    "light": "#848c94",
-    "dark": "#c9cacf"
-  },
-  "favicon": "/favicon.svg",
-  "logo": {
-    "light": "https://media.brand.dev/74afcedb-15a5-48fa-81f6-92d9c570adc6.svg",
-    "dark": "https://media.brand.dev/1964742a-4107-4ee0-b925-4e79b3624e89.svg"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/tiagosiebler/bitget-api"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/tiagosiebler/bitget-api"
-    }
-  },
+  "primaryColor": "#0d152d",
+  "lightColor": "#848c94",
+  "darkColor": "#c9cacf",
   "navigation": {
     "tabs": [
       {
@@ -88,5 +71,32 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Complete V2 and V3/UTA REST API coverage with TypeScript types",
+    "Robust WebSocket clients with automatic reconnection and resubscription",
+    "WebSocket API Client for REST-like order placement over WebSockets",
+    "Full TypeScript support with strongly-typed requests and responses",
+    "HMAC and RSA authentication support",
+    "Browser support via webpack bundle",
+    "Demo trading environment support",
+    "Custom logger and sign function injection",
+    "Proxy support via axios",
+    "Over 100 end-to-end integration tests"
+  ],
+  "publicApiSurface": [
+    "RestClientV3",
+    "RestClientV2",
+    "WebsocketClientV3",
+    "WebsocketClientV2",
+    "WebsocketAPIClient",
+    "DefaultLogger",
+    "API_ERROR_CODE",
+    "WS_KEY_MAP",
+    "RestClientOptions",
+    "WSClientConfigurableOptions",
+    "WsTopicRequest",
+    "isWSAPIResponse",
+    "isWsPong"
+  ]
 }

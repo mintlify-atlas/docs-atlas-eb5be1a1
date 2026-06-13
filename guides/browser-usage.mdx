@@ -1,0 +1,108 @@
+---
+title: "Use bitget-api in the Browser with Webpack"
+sidebarTitle: "Browser Usage"
+description: "Bundle bitget-api for browser environments using webpack or native ESM imports, with TypeScript path aliases for crypto polyfills."
+---
+
+The `bitget-api` SDK ships with two approaches for running in browser environments. Modern TypeScript projects can use direct ESM imports with crypto polyfills configured via `tsconfig.json` path aliases, while projects that need a classic `<script>` tag can use the included webpack configuration to build a self-contained UMD bundle. Both approaches give full access to the REST and WebSocket APIs from the browser.
+
+## Approach 1: Modern ESM Imports
+
+This is the recommended approach for TypeScript projects and modern bundlers (Vite, esbuild, Angular, etc.). You map Node.js built-in modules to their browser-compatible polyfill equivalents using TypeScript's `paths` compiler option.
+
+<Steps>
+  <Step title="Install browser polyfills">
+    Install the browser-compatible versions of Node.js built-in modules that `bitget-api` depends on:
+
+    ```sh
+    npm install crypto-browserify stream-browserify
+    ```
+  </Step>
+
+  <Step title="Configure tsconfig.json paths">
+    Add `paths` entries to your `tsconfig.json` to redirect `crypto` and `stream` imports to their browser polyfills:
+
+    ```json
+    {
+      "compilerOptions": {
+        "paths": {
+          "crypto": [
+            "./node_modules/crypto-browserify"
+          ],
+          "stream": [
+            "./node_modules/stream-browserify"
+          ]
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Declare the global shim">
+    In the global context of your application — for example, in a `polyfills.ts` file (Angular) or your top-level entry point — add:
+
+    ```ts
+    (window as any).global = window;
+    ```
+
+    This shim makes the `global` variable available, which some Node.js-style modules expect to find in the global scope.
+  </Step>
+</Steps>
+
+---
+
+## Approach 2: Webpack Bundle
+
+This is the classic approach for serving the SDK as a minified JavaScript file loaded via a `<script>` tag on any webpage. The repository ships a ready-made `webpack.config.cjs` that produces a UMD bundle.
+
+<Steps>
+  <Step title="Install dependencies">
+    ```sh
+    npm install
+    ```
+  </Step>
+
+  <Step title="Build the project">
+    Compile the TypeScript source to CommonJS before bundling:
+
+    ```sh
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Pack the bundle">
+    Run webpack to produce the minified browser bundle:
+
+    ```sh
+    npm run pack
+    ```
+
+    The output file `bitgetapi.js` (plus a source map) is written to the `dist/` directory. Reference it with a standard script tag:
+
+    ```html
+    <script src="dist/bitgetapi.js"></script>
+    ```
+  </Step>
+</Steps>
+
+The webpack configuration targets UMD output and excludes the Node.js-only `http` and `https` modules via `resolve.fallback`, so the bundle works in browsers without those native modules:
+
+```js
+// webpack/webpack.config.cjs (excerpt)
+resolve: {
+  fallback: {
+    "http": false,
+    "https": false,
+  }
+}
+```
+
+---
+
+<Note>
+  The webpack bundle and the ESM import approach should have largely consistent API surface, but small differences may exist. In particular, Node.js-only features such as the `https.Agent` keep-alive option (`keepAlive: true`) are silently skipped in browser environments because the `https` module is excluded from the bundle.
+</Note>
+
+<Warning>
+  Never embed your Bitget API keys, secrets, or passphrases in browser-side code. Anyone who visits your page can read JavaScript loaded in the browser. For authenticated requests, proxy them through a secure backend server that holds your credentials.
+</Warning>

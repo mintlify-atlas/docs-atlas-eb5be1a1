@@ -1,0 +1,344 @@
+---
+title: "RestClientV2: Bitget Classic REST API Reference"
+sidebarTitle: "REST Client V2"
+description: "Use RestClientV2 to call Bitget's V2 REST APIs covering spot, futures, margin, copy trading, broker, earn, and sub-account management."
+---
+
+`RestClientV2` is the REST client for Bitget's **classic (V2)** account structure, targeting the `/api/v2/` family of endpoints. It provides comprehensive coverage of spot trading, USDT/COIN-margined futures, cross/isolated margin, copy trading, earn products, broker management, and sub-accounts. If your account has **not** yet been upgraded to Bitget's Unified Trading Account (UTA), this is the client you should use. Accounts already on UTA should use [`RestClientV3`](/rest/rest-client-v3) instead.
+
+## Installation
+
+<Steps>
+  <Step title="Install the package">
+    ```bash
+    npm install bitget-api
+    ```
+  </Step>
+  <Step title="Import and instantiate">
+    <CodeGroup>
+      ```typescript ESM (authenticated)
+      import { RestClientV2 } from 'bitget-api';
+
+      const client = new RestClientV2({
+        apiKey: 'YOUR_API_KEY',
+        apiSecret: 'YOUR_API_SECRET',
+        apiPass: 'YOUR_API_PASS',
+      });
+      ```
+
+      ```javascript CJS (authenticated)
+      const { RestClientV2 } = require('bitget-api');
+
+      const client = new RestClientV2({
+        apiKey: 'YOUR_API_KEY',
+        apiSecret: 'YOUR_API_SECRET',
+        apiPass: 'YOUR_API_PASS',
+      });
+      ```
+
+      ```typescript Public-only (no credentials)
+      import { RestClientV2 } from 'bitget-api';
+
+      // Omit credentials entirely for public endpoints only
+      const client = new RestClientV2();
+      ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+<Note>
+  Credentials are entirely optional when you only need public market data. Calling private endpoints without credentials will result in an authentication error.
+</Note>
+
+---
+
+## Method Reference
+
+### Spot
+
+#### Market Data (public)
+
+| Method | Description |
+|--------|-------------|
+| `getSpotTicker(params?)` | Returns the latest ticker for one or all spot symbols. |
+| `getSpotCandles(params)` | Returns OHLCV candlestick data for a spot symbol. |
+| `getSpotHistoricCandles(params)` | Returns older historical candles beyond the standard window. |
+| `getSpotOrderBookDepth(params)` | Returns the current order book for a spot symbol. |
+| `getSpotRecentTrades(params)` | Returns the most recent public trades for a spot symbol. |
+| `getSpotSymbolInfo(params?)` | Returns trading rules (min size, tick size, etc.) for spot symbols. |
+
+#### Spot Account (private)
+
+| Method | Description |
+|--------|-------------|
+| `getSpotAccount()` | Returns overview information for the spot account. |
+| `getSpotAccountAssets(params?)` | Returns a list of all spot asset balances. |
+| `getSpotAccountBills(params)` | Returns paginated spot account transaction history. |
+
+#### Spot Trading (private)
+
+| Method | Description |
+|--------|-------------|
+| `spotSubmitOrder(params)` | Places a new spot order. |
+| `spotCancelOrder(params)` | Cancels a single open spot order. |
+| `spotBatchSubmitOrders(params)` | Places multiple spot orders in a single request. |
+| `spotBatchCancelOrders(params)` | Cancels multiple spot orders in a single request. |
+| `getSpotOpenOrders(params?)` | Returns all currently open spot orders. |
+| `getSpotHistoricOrders(params)` | Returns historical spot orders with filtering options. |
+| `getSpotOrder(params)` | Returns details for a single spot order. |
+| `getSpotFills(params)` | Returns the fill history for spot orders. |
+
+---
+
+### Futures
+
+#### Market Data (public)
+
+| Method | Description |
+|--------|-------------|
+| `getFuturesTicker(params)` | Returns the latest ticker for a futures symbol. |
+| `getFuturesAllTickers(params)` | Returns tickers for all futures symbols in a product type. |
+| `getFuturesCandles(params)` | Returns OHLCV candlestick data for a futures symbol. |
+| `getFuturesHistoricCandles(params)` | Returns older historical candles for a futures symbol. |
+| `getFuturesOpenInterest(params)` | Returns the open interest for a futures symbol. |
+| `getFuturesCurrentFundingRate(params)` | Returns the current funding rate for a perpetual contract. |
+| `getFuturesHistoricFundingRates(params)` | Returns historical funding rate records. |
+| `getFuturesContractConfig(params)` | Returns contract configuration and trading rules. |
+
+#### Futures Account (private)
+
+| Method | Description |
+|--------|-------------|
+| `getFuturesAccountAsset(params)` | Returns account asset info for a single margin coin. |
+| `getFuturesAccountAssets(params)` | Returns asset info for all margin coins in a product type. |
+| `getFuturesAccountBills(params)` | Returns paginated futures account transaction history. |
+| `setFuturesLeverage(params)` | Sets the leverage for a futures symbol. |
+| `getFuturesMaxOpenableQuantity(params)` | Returns the maximum quantity available to open for a symbol. |
+
+#### Futures Positions (private)
+
+| Method | Description |
+|--------|-------------|
+| `getFuturesPosition(params)` | Returns the position for a single symbol. |
+| `getFuturesPositions(params)` | Returns all open positions for a product type. |
+| `getFuturesHistoricPositions(params)` | Returns paginated position history. |
+
+#### Futures Trading (private)
+
+| Method | Description |
+|--------|-------------|
+| `futuresSubmitOrder(params)` | Places a new futures order. |
+| `futuresCancelOrder(params)` | Cancels a single futures order. |
+| `futuresBatchSubmitOrders(params)` | Places multiple futures orders in a single request. |
+| `futuresBatchCancelOrders(params)` | Cancels multiple futures orders in a single request. |
+| `futuresCancelAllOrders(params)` | Cancels all open futures orders for a symbol. |
+| `futuresFlashClosePositions(params)` | Immediately closes positions at market price. |
+| `getFuturesOpenOrders(params)` | Returns all currently open futures orders. |
+| `getFuturesHistoricOrders(params)` | Returns historical futures orders with filtering options. |
+| `getFuturesOrder(params)` | Returns details for a single futures order. |
+
+---
+
+### Margin
+
+Margin methods accept a `marginType` argument (`'crossed'` or `'isolated'`) to distinguish between cross and isolated margin accounts.
+
+| Method | Description |
+|--------|-------------|
+| `getMarginAccountAssets(marginType, params)` | Returns asset balances for the margin account. |
+| `marginSubmitOrder(marginType, params)` | Places a new margin order. |
+| `marginCancelOrder(marginType, params)` | Cancels a margin order. |
+| `marginBatchSubmitOrders(marginType, params)` | Places multiple margin orders in one request. |
+| `marginBatchCancelOrders(marginType, params)` | Cancels multiple margin orders in one request. |
+| `getMarginOpenOrders(marginType, params)` | Returns open margin orders. |
+| `getMarginHistoricOrders(marginType, params)` | Returns historical margin orders. |
+| `marginBorrow(marginType, params)` | Borrows funds for margin trading. |
+| `marginRepay(marginType, params)` | Repays borrowed margin funds. |
+| `getMarginBorrowHistory(marginType, params)` | Returns borrow history for a margin account. |
+| `getMarginInterestHistory(marginType, params)` | Returns interest accrual history. |
+
+---
+
+### Common / Account
+
+| Method | Description |
+|--------|-------------|
+| `getServerTime()` | Returns the current Bitget server timestamp. |
+| `getBalances()` | Returns balances across all account types (spot, futures, etc.). |
+| `getFundingAssets(params?)` | Returns funding wallet balances. |
+| `spotTransfer(params)` | Transfers assets between spot and other wallets. |
+| `spotWithdraw(params)` | Initiates a spot withdrawal (on-chain or internal). |
+| `getSpotDepositAddress(params)` | Returns the deposit address for a given coin and chain. |
+| `getSpotDepositHistory(params)` | Returns the deposit records for the spot account. |
+| `getSpotWithdrawalHistory(params)` | Returns the withdrawal records for the spot account. |
+
+---
+
+### Copy Trading
+
+| Method | Description |
+|--------|-------------|
+| `getSpotTraderCurrentOrders(params)` | Returns the current open orders for a spot copy-trading lead account. |
+| `getFuturesTraderCurrentOrder(params)` | Returns the current order state for a futures copy-trading lead account. |
+
+---
+
+### Earn
+
+| Method | Description |
+|--------|-------------|
+| `getEarnSavingsProducts(params?)` | Returns available flexible savings products. |
+| `getEarnSavingsAccount()` | Returns the savings account summary. |
+| `earnSubscribeSavings(params)` | Subscribes to a savings product. |
+| `earnRedeemSavings(params)` | Redeems a savings subscription. |
+| `getEarnEliteProducts()` | Returns available Elite earn products. |
+| `subscribeEarnElite(params)` | Subscribes to an Elite earn product. |
+| `redeemEarnElite(params)` | Redeems an Elite earn subscription. |
+
+---
+
+## Code Examples
+
+### Public Spot Market Data — `getSpotTicker()` and `getSpotCandles()`
+
+No credentials are needed for public endpoints. Instantiate the client without options.
+
+```typescript
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2();
+
+(async () => {
+  try {
+    // Fetch the latest candles for BTCUSDT
+    const candleResponse = await client.getSpotCandles({
+      symbol: 'BTCUSDT',
+      granularity: '1min',
+      limit: '100',
+    });
+
+    console.table(candleResponse.data);
+    console.log('Candles returned:', candleResponse.data.length);
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+---
+
+### Authenticated Spot Account — `getSpotAccount()`
+
+```typescript
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+(async () => {
+  try {
+    // Fetch account info
+    const accountInfo = await client.getSpotAccount();
+    console.log('Spot account info:', accountInfo.data);
+
+    // Fetch individual asset balances
+    const assets = await client.getSpotAccountAssets();
+    const nonZeroBalances = assets.data.filter(
+      (asset) => Number(asset.available) > 0,
+    );
+    console.log('Non-zero balances:', nonZeroBalances);
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+---
+
+### Place a Spot Order — `spotSubmitOrder()`
+
+The `SpotOrderRequestV2` type describes all order parameters. The example below reads the minimum trade amount from the symbol's trading rules before placing a market sell order.
+
+```typescript
+import { RestClientV2, SpotOrderRequestV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+(async () => {
+  try {
+    const symbol = 'BTCUSDT';
+
+    // Get current BTC balance
+    const assets = await client.getSpotAccountAssets();
+    const btcAsset = assets.data.find(
+      (bal) => bal.coin === 'BTC' || bal.coin === 'btc',
+    );
+    const btcAmount = btcAsset ? Number(btcAsset.available) : 0;
+
+    if (!btcAmount) {
+      console.error('No BTC available to sell');
+      return;
+    }
+
+    // Fetch trading rules to retrieve the minimum order size
+    const symbolsResult = await client.getSpotSymbolInfo();
+    const btcRules = symbolsResult.data.find((rule) => rule.symbol === symbol);
+    if (!btcRules) {
+      return console.log('No trading rules found for ' + symbol);
+    }
+
+    const order: SpotOrderRequestV2 = {
+      symbol,
+      side: 'sell',
+      orderType: 'market',
+      force: 'gtc',
+      size: btcRules.minTradeAmount,
+    };
+
+    console.log('Submitting order:', order);
+    const result = await client.spotSubmitOrder(order);
+    console.log('Order result:', result);
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+---
+
+## Request Debugging
+
+<Warning>
+  Setting `BITGETTRACE=true` will print the full details of every outbound HTTP request and inbound response to stdout. This is very useful for diagnosing authentication issues, unexpected parameter serialisation, or API errors — but it will expose your API credentials and request payloads in logs. **Never enable this in production.**
+</Warning>
+
+```bash
+BITGETTRACE=true ts-node your-script.ts
+```
+
+This environment variable is read by the underlying REST client base class and activates verbose request/response tracing without requiring any code changes.
+
+---
+
+## Latency Diagnostics
+
+<Tip>
+  Call `client.fetchLatencySummary()` to measure the round-trip latency and clock skew between your server and Bitget's API. If the measured time difference exceeds 500 ms, you risk authentication failures caused by timestamp mismatch. The method logs a full diagnostic summary to the console automatically.
+</Tip>
+
+```typescript
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2();
+
+(async () => {
+  await client.fetchLatencySummary();
+})();
+```

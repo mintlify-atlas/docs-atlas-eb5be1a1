@@ -1,0 +1,224 @@
+---
+title: "Handle Bitget API Errors and Error Codes"
+sidebarTitle: "Error Handling"
+description: "Catch and handle REST API errors in bitget-api, including typed error codes from API_ERROR_CODE, and WebSocket exception events."
+---
+
+The `bitget-api` SDK propagates API errors as thrown exceptions from REST client calls, so you can handle them with standard `try/catch` blocks. WebSocket errors are surfaced through an `exception` event emitted on the client instance rather than thrown directly, keeping async event-driven code clean. Understanding both patterns — and using the built-in `API_ERROR_CODE` constants — lets you write precise, resilient error handling that distinguishes recoverable conditions (like an insufficient balance) from hard failures (like missing permissions).
+
+## REST Error Handling
+
+When a REST call receives a non-`00000` response code from the Bitget API, the SDK throws an error object. The shape of that object includes:
+
+- `code` — the HTTP status code (e.g. `400`, `401`)
+- `message` — the HTTP status text
+- `body` — the raw response body from Bitget, which contains the Bitget-specific `code` and `msg` fields
+- `headers` — the response headers
+- `requestOptions` — the options used for the request (with `apiPass` and `apiSecret` redacted)
+
+Wrap any REST call in a `try/catch` to capture these details:
+
+```typescript
+import { RestClientV3, API_ERROR_CODE } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+try {
+  const order = await client.placeFuturesOrder({
+    symbol: 'BTCUSDT',
+    productType: 'USDT-FUTURES',
+    marginMode: 'crossed',
+    marginCoin: 'USDT',
+    size: '0.01',
+    side: 'buy',
+    orderType: 'market',
+    tradeSide: 'open',
+  });
+  console.log('Order placed:', order);
+} catch (error: any) {
+  // error.body contains Bitget's own code and message
+  const bitgetCode = error.body?.code;
+  const bitgetMsg = error.body?.msg;
+
+  console.error(`Bitget error [${bitgetCode}]: ${bitgetMsg}`);
+
+  if (bitgetCode === API_ERROR_CODE.INSUFFICIENT_BALANCE_V3) {
+    console.warn('Not enough balance — top up your account and retry.');
+  } else if (bitgetCode === API_ERROR_CODE.INCORRECT_PERMISSIONS) {
+    console.error('API key is missing the required permission for this action.');
+  }
+}
+```
+
+## `API_ERROR_CODE` Constants
+
+Import `API_ERROR_CODE` from `bitget-api` to compare error codes without hard-coding magic strings. The full set of constants:
+
+```typescript
+import { API_ERROR_CODE } from 'bitget-api';
+```
+
+| Constant | Code | Description |
+|---|---|---|
+| `SUCCESS` | `'00000'` | Request succeeded |
+| `NO_ORDER_TO_CANCEL` | `'22001'` | No open order found to cancel |
+| `INSUFFICIENT_BALANCE_V3` | `'25202'` | Insufficient balance (V3 endpoints) |
+| `INSUFFICIENT_MARGIN_V3` | `'25203'` | Insufficient margin (V3 endpoints) |
+| `ORDER_DOES_NOT_EXIST_V3` | `'25204'` | Order not found (V3 endpoints) |
+| `NO_POSITION_TO_CLOSE` | `'25227'` | No open position to close |
+| `INCORRECT_PERMISSIONS` | `'40014'` | API key lacks required permission |
+| `ACCOUNT_NOT_COPY_TRADER` | `'40017'` | Account is not a copy trader |
+| `ACCOUNT_NOT_BROKER` | `'40029'` | Account is not a broker |
+| `PARAMETER_DOES_NOT_EXIST` | `'40034'` | A required parameter is missing |
+| `ACCOUNT_KYC_REQUIRED` | `'40035'` | KYC verification required |
+| `DISABLE_SUB_ACCESS` | `'40068'` | Sub-account access is disabled |
+| `FUTURES_ORDER_GET_NOT_FOUND` | `'40109'` | Futures order could not be found on GET |
+| `SERVICE_RETURNED_ERROR` | `'40725'` | Internal service error from Bitget |
+| `QTY_GREATER_THAN_MAX_OPEN` | `'40762'` | Quantity exceeds maximum open limit |
+| `FUTURES_ORDER_CANCEL_NOT_FOUND` | `'40768'` | Futures order not found for cancellation |
+| `ORDER_TYPE_MUST_BE_UNILATERAL_POSITION` | `'40774'` | Order type must be unilateral position |
+| `PARAMETER_EXCEPTION` | `'40808'` | Parameter verification exception (e.g. margin mode must be FIXED) |
+| `PLAN_ORDER_REACHED_UPPER_LIMIT` | `'40889'` | Plan order count has reached the upper limit |
+| `FUTURES_INSUFFICIENT_POSITION_NO_TPSL` | `'40891'` | Insufficient position — cannot set TP/SL |
+| `ORDER_NOT_FOUND` | `'43001'` | Order not found |
+| `QTY_LESS_THAN_MINIMUM` | `'43006'` | Quantity is below minimum |
+| `INSUFFICIENT_BALANCE` | `'43012'` | Insufficient balance |
+| `FUTURES_ORDER_TPSL_NOT_FOUND` | `'43020'` | Futures TP/SL order not found |
+| `PLAN_ORDER_NOT_FOUND` | `'43025'` | Plan/trigger order not found |
+| `EXCEEDS_MAX_AMOUNT_TRANSFERRED` | `'43117'` | Transfer amount exceeds allowed maximum |
+| `EXCEEDS_MAX_AMOUNT_TRANSFERRED_V2` | `'43152'` | Transfer amount exceeds maximum (V2) |
+| `QTY_LESS_THAN_MINIMUM_SPOT` | `'45110'` | Spot quantity is below minimum order size |
+| `PASSPHRASE_CANNOT_BE_EMPTY` | `'400172'` | API passphrase must not be empty |
+
+Match against a specific code like this:
+
+```typescript
+import { API_ERROR_CODE } from 'bitget-api';
+
+if (error.body?.code === API_ERROR_CODE.INSUFFICIENT_BALANCE_V3) {
+  // handle low balance scenario
+}
+```
+
+<Note>
+  For the full description of each error code and any codes added after this writing, refer to the [Bitget API error code documentation](https://www.bitget.com/api-doc/common/error-code).
+</Note>
+
+## WebSocket Error Handling
+
+WebSocket errors do not throw — they are emitted as `exception` events on the client. Listen for this event on any `WebsocketClientV2` or `WebsocketClientV3` instance to capture connectivity problems, authentication failures, and subscription errors.
+
+```typescript
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+wsClient.on('exception', (data) => {
+  console.error('WebSocket error on key:', data.wsKey, data);
+});
+
+wsClient.on('open', (data) => {
+  console.log('Connection opened:', data.wsKey);
+});
+
+wsClient.on('reconnect', ({ wsKey }) => {
+  console.log('Reconnecting...', wsKey);
+});
+
+wsClient.on('reconnected', (data) => {
+  console.log('Reconnected:', data?.wsKey);
+});
+
+wsClient.subscribeTopic('SPOT', 'ticker', 'BTCUSDT');
+```
+
+## Strict Parameter Validation
+
+By default, the SDK silently drops `undefined` parameters from requests. Enable `strictParamValidation` to throw an error at call time if any parameter is `undefined`, which helps catch bugs early during development:
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+  strictParamValidation: true, // throws if any param is undefined
+});
+```
+
+## Full Examples
+
+<CodeGroup>
+
+```typescript REST Try/Catch (TypeScript)
+import { RestClientV3, API_ERROR_CODE } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+async function cancelOrder(orderId: string, symbol: string) {
+  try {
+    const result = await client.cancelFuturesOrder({
+      symbol,
+      productType: 'USDT-FUTURES',
+      orderId,
+    });
+    console.log('Cancelled:', result);
+  } catch (error: any) {
+    const code = error.body?.code;
+
+    switch (code) {
+      case API_ERROR_CODE.FUTURES_ORDER_CANCEL_NOT_FOUND:
+        console.warn('Order already filled or cancelled — nothing to do.');
+        break;
+      case API_ERROR_CODE.INCORRECT_PERMISSIONS:
+        throw new Error('API key is missing the trade permission.');
+      case API_ERROR_CODE.PASSPHRASE_CANNOT_BE_EMPTY:
+        throw new Error('apiPass must be set in RestClientOptions.');
+      default:
+        console.error(`Unexpected error [${code}]: ${error.body?.msg}`);
+        throw error;
+    }
+  }
+}
+```
+
+```typescript WebSocket Exception Listener (TypeScript)
+import { WebsocketClientV3 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// All WebSocket errors surface here — never thrown
+wsClient.on('exception', (data) => {
+  console.error('WS error on', data.wsKey, JSON.stringify(data, null, 2));
+});
+
+wsClient.on('update', (data) => {
+  console.log('Market data update:', data);
+});
+
+wsClient.on('authenticated', (data) => {
+  console.log('Authenticated on', data.wsKey);
+});
+
+// Subscribe to private account updates
+wsClient.subscribeTopic('USDT-FUTURES', 'account');
+```
+
+</CodeGroup>

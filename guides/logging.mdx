@@ -1,0 +1,134 @@
+---
+title: "Customise SDK Logging in bitget-api"
+sidebarTitle: "Logging"
+description: "Control log output in bitget-api by providing a custom logger or overriding DefaultLogger methods to filter trace, info, and error messages."
+---
+
+By default, `bitget-api` logs connection lifecycle events, subscription confirmations, and errors to the console. The `trace` level is silenced in the default configuration to keep output manageable during normal operation, but all three log levels — `trace`, `info`, and `error` — can be overridden or replaced entirely. Every client constructor accepts a custom logger as its second argument, giving you full control over where and how log output is written.
+
+## The DefaultLogger
+
+The SDK exports a `DefaultLogger` object that serves as the base implementation. You can import it, spread it into a new object, and selectively override only the methods you care about:
+
+```ts
+import { DefaultLogger } from 'bitget-api';
+
+// DefaultLogger shape:
+// {
+//   trace: (...params) => void   // silent by default
+//   info:  (...params) => void   // console.info
+//   error: (...params) => void   // console.error
+// }
+```
+
+The `trace` method is intentionally a no-op in the default export — it is designed to be enabled only while troubleshooting, because it emits high-frequency messages such as raw ping/pong frames and every incoming WebSocket message.
+
+---
+
+## Suppress Trace Logs
+
+If you have already enabled trace logging and want to turn it off, or if you want to be explicit about silencing it, override `trace` with an empty function:
+
+```ts
+import { DefaultLogger, WebsocketClientV2 } from 'bitget-api';
+
+// Disable all trace-level logging (fewer console messages)
+const customLogger = {
+  ...DefaultLogger,
+  trace: () => {},
+};
+
+const ws = new WebsocketClientV2(
+  {
+    apiKey: 'API_KEY',
+    apiSecret: 'API_SECRET',
+    apiPass: 'API_PASS',
+  },
+  customLogger,
+);
+```
+
+---
+
+## Enable Trace Logs
+
+To turn trace logs on — useful when debugging connection issues or understanding SDK internals — override `trace` with a real logging call:
+
+```ts
+import { DefaultLogger, WebsocketClientV3 } from 'bitget-api';
+
+const verboseLogger = {
+  ...DefaultLogger,
+  trace: (...params: any[]) => console.log('trace', ...params),
+};
+
+const ws = new WebsocketClientV3(
+  {
+    apiKey: process.env.API_KEY_COM,
+    apiSecret: process.env.API_SECRET_COM,
+    apiPass: process.env.API_PASS_COM,
+  },
+  verboseLogger,
+);
+```
+
+---
+
+## Custom Logger
+
+For production applications, replace the logger entirely with an object that satisfies the `{ trace, info, error }` interface. This lets you forward SDK logs into your own logging infrastructure (Winston, Pino, Datadog, etc.):
+
+```ts
+import { RestClientV3, WebsocketClientV3 } from 'bitget-api';
+
+const myLogger = {
+  trace: (...params: any[]) => myLoggingLib.debug(...params),
+  info:  (...params: any[]) => myLoggingLib.info(...params),
+  error: (...params: any[]) => myLoggingLib.error(...params),
+};
+
+// Pass as the second argument to any client constructor
+const restClient = new RestClientV3(
+  {
+    apiKey: process.env.API_KEY_COM,
+    apiSecret: process.env.API_SECRET_COM,
+    apiPass: process.env.API_PASS_COM,
+  },
+  myLogger,
+);
+
+const wsClient = new WebsocketClientV3(
+  {
+    apiKey: process.env.API_KEY_COM,
+    apiSecret: process.env.API_SECRET_COM,
+    apiPass: process.env.API_PASS_COM,
+  },
+  myLogger,
+);
+```
+
+The logger is always the **second argument** to any client constructor. Both `RestClientV3`/`RestClientV2` and `WebsocketClientV3`/`WebsocketClientV2` follow the same convention.
+
+---
+
+## Debug HTTP Requests
+
+In rare situations you may need to inspect the raw HTTP requests being constructed — including headers, query strings, and request bodies — as well as the raw API responses. Enable this by setting the `BITGETTRACE` environment variable to `true` before starting your process:
+
+```sh
+BITGETTRACE=true node dist/my-bot.js
+```
+
+Or in a `.env` file:
+
+```sh
+BITGETTRACE=true
+```
+
+This setting is independent of the logger configuration and operates at the HTTP transport layer.
+
+---
+
+<Tip>
+  Enable trace-level logging during development to understand exactly what the SDK is doing — which WebSocket topics are being subscribed, when heartbeats fire, and when reconnection logic kicks in. Turn it off (or route it to a file) before deploying to production to avoid flooding your console or log aggregator.
+</Tip>

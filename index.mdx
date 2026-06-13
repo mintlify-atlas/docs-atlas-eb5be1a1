@@ -1,20 +1,114 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "Bitget API Node.js SDK"
+sidebarTitle: "Home"
+description: "Professional Node.js & TypeScript SDK for Bitget V2 and V3/UTA REST APIs and WebSockets, with full TypeScript support and browser compatibility."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+The Bitget API SDK gives Node.js and TypeScript developers a complete, production-ready interface to Bitget's trading platform. Whether you're building trading bots, portfolio trackers, or real-time dashboards, the SDK wraps every REST endpoint and WebSocket stream in a strongly-typed, promise-based API.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install the SDK and make your first API call in under five minutes.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Configure API keys, HMAC or RSA signing, and demo trading credentials.
+  </Card>
+  <Card title="REST Client V3" icon="server" href="/rest/rest-client-v3">
+    Use the V3/UTA client for the latest Unified Trading Account REST APIs.
+  </Card>
+  <Card title="WebSocket Clients" icon="bolt" href="/websockets/websocket-client-v3">
+    Subscribe to real-time market data and account events via WebSocket.
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## What's Included
+
+The `bitget-api` package exports five main clients covering every Bitget API generation:
+
+| Client | Purpose |
+|---|---|
+| `RestClientV3` | V3/UTA REST APIs — recommended for new projects |
+| `RestClientV2` | V2 Classic REST APIs |
+| `WebsocketClientV3` | V3/UTA real-time data streams |
+| `WebsocketClientV2` | V2 real-time data streams |
+| `WebsocketAPIClient` | REST-like order placement over WebSocket |
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Full TypeScript Support" icon="code">
+    Strongly-typed request and response objects for every endpoint, generated from source.
+  </Card>
+  <Card title="Auto-Reconnect WebSockets" icon="rotate">
+    Smart persistence with configurable heartbeats, automatic reconnect, and resubscription.
+  </Card>
+  <Card title="HMAC & RSA Auth" icon="shield-halved">
+    Supports both HMAC and RSA authentication methods with optional custom signing functions.
+  </Card>
+  <Card title="Browser Compatible" icon="globe">
+    Ships a webpack bundle for use in browser environments alongside the Node.js package.
+  </Card>
+</CardGroup>
+
+## Getting Started
+
+<Steps>
+  <Step title="Install the package">
+    ```bash
+    npm install bitget-api
+    ```
+  </Step>
+  <Step title="Create an API client">
+    ```typescript
+    import { RestClientV3 } from 'bitget-api';
+
+    const client = new RestClientV3({
+      apiKey: process.env.API_KEY,
+      apiSecret: process.env.API_SECRET,
+      apiPass: process.env.API_PASS,
+    });
+    ```
+  </Step>
+  <Step title="Make your first call">
+    ```typescript
+    const balances = await client.getBalances();
+    console.log(balances);
+    ```
+  </Step>
+  <Step title="Subscribe to WebSocket data">
+    ```typescript
+    import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+    const ws = new WebsocketClientV3({ apiKey: '...', apiSecret: '...', apiPass: '...' });
+    ws.on('update', (data) => console.log(data));
+    ws.subscribe({ topic: 'ticker', payload: { instType: 'spot', symbol: 'BTCUSDT' } }, WS_KEY_MAP.v3Public);
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  If your Bitget account has been upgraded to the **Unified Trading Account**, use `RestClientV3` and `WebsocketClientV3`. Otherwise, use the V2 clients.
+</Note>
+
+## Resources
+
+<CardGroup cols={3}>
+  <Card title="REST Client V2" icon="database" href="/rest/rest-client-v2">
+    Classic V2 REST endpoints for spot, futures, margin, and more.
+  </Card>
+  <Card title="WebSocket API Client" icon="network-wired" href="/websockets/websocket-api-client">
+    Place orders over a persistent WebSocket connection.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle API errors and error codes gracefully.
+  </Card>
+  <Card title="Logging" icon="terminal" href="/guides/logging">
+    Customise or silence SDK log output.
+  </Card>
+  <Card title="Browser Usage" icon="window-maximize" href="/guides/browser-usage">
+    Bundle the SDK for use in frontend applications.
+  </Card>
+  <Card title="Demo Trading" icon="flask" href="/guides/demo-trading">
+    Connect to Bitget's simulated trading environment.
+  </Card>
+</CardGroup>

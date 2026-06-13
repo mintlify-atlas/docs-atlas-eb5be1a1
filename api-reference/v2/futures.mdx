@@ -1,0 +1,274 @@
+---
+title: "V2 Futures Trading API: Positions and Orders"
+sidebarTitle: "Futures"
+description: "RestClientV2 futures methods for market data, positions, leverage, order placement and management across USDT, COIN, and USDC futures markets."
+---
+
+The `RestClientV2` class provides a unified interface for all futures markets on Bitget, supporting USDT-margined, coin-margined, and USDC-margined perpetual contracts. Every futures method accepts a `productType` parameter that routes the request to the correct market. Authenticated methods cover position management, leverage configuration, and the full order lifecycle including plan (trigger) and TP/SL orders.
+
+## Product types
+
+Every futures method that is market-specific requires a `productType` value from `FuturesProductTypeV2`:
+
+| Value | Market |
+|---|---|
+| `'USDT-FUTURES'` | USDT-margined perpetuals (most liquid) |
+| `'COIN-FUTURES'` | Coin-margined (inverse) perpetuals |
+| `'USDC-FUTURES'` | USDC-margined perpetuals |
+| `'SUSDT-FUTURES'` | Simulated USDT-margined (testnet) |
+| `'SCOIN-FUTURES'` | Simulated coin-margined (testnet) |
+| `'SUSDC-FUTURES'` | Simulated USDC-margined (testnet) |
+
+<Tip>
+  Use the `'SUSDT-FUTURES'` product type with paper-trading credentials to test your order flow end-to-end without risking real funds.
+</Tip>
+
+---
+
+## Market Data
+
+These endpoints are public and do not require authentication.
+
+| Method | Description |
+|---|---|
+| `getFuturesTicker(params)` | Single ticker for a `symbol` + `productType` |
+| `getFuturesAllTickers(params)` | All tickers for a given `productType` |
+| `getFuturesCandles(params)` | OHLCV candles with optional `kLineType` (`MARKET`, `MARK`, `INDEX`) |
+| `getFuturesHistoricCandles(params)` | Historical candles beyond the rolling window |
+| `getFuturesRecentTrades(params)` | Latest trades for a symbol |
+| `getFuturesCurrentFundingRate(params)` | Current funding rate for a perpetual contract |
+| `getFuturesHistoricFundingRates(params)` | Paginated funding rate history |
+| `getFuturesOpenInterest(params)` | Open interest in contracts and notional value |
+| `getFuturesPositionTier(params)` | Risk tier configuration (leverage vs. position size) |
+| `getFuturesContractConfig(params)` | Contract specifications including `minTradeNum` |
+| `getFuturesSymbolPrice(params)` | Current mark/index price for a symbol |
+
+<CodeGroup>
+```typescript Fetch Funding Rate
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2();
+
+const rate = await client.getFuturesCurrentFundingRate({
+  symbol: 'BTCUSDT',
+  productType: 'USDT-FUTURES',
+});
+console.log('Current funding rate:', rate.data);
+```
+
+```typescript Fetch Candles
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2();
+
+const candles = await client.getFuturesCandles({
+  symbol: 'BTCUSDT',
+  productType: 'USDT-FUTURES',
+  granularity: '1H',
+  limit: '200',
+});
+console.log('Candles:', candles.data);
+```
+</CodeGroup>
+
+---
+
+## Account
+
+All account endpoints require authentication.
+
+| Method | Description |
+|---|---|
+| `getFuturesAccountAsset(params)` | Single account asset (requires `symbol`, `marginCoin`) |
+| `getFuturesAccountAssets(params)` | All assets for a `productType` |
+| `getFuturesAccountBills(params)` | Paginated billing records (PnL, fees, funding) |
+| `setFuturesLeverage(params)` | Set leverage for a symbol; specify `holdSide` for one-way mode |
+| `setFuturesMarginMode(params)` | Switch between `'isolated'` and `'crossed'` margin |
+| `setFuturesPositionMode(params)` | Set position mode (`'one_way_mode'` or `'hedge_mode'`) |
+| `getFuturesMaxOpenableQuantity(params)` | Maximum quantity openable given margin and price |
+| `getFuturesLiquidationPrice(params)` | Estimated liquidation price for a hypothetical position |
+
+---
+
+## Positions
+
+| Method | Description |
+|---|---|
+| `getFuturesPosition(params)` | Single position for a symbol and margin coin |
+| `getFuturesPositions(params)` | All open positions for a `productType` |
+| `getFuturesHistoricPositions(params)` | Closed position history with pagination |
+| `setFuturesPositionMargin(params)` | Add or reduce margin on an isolated position |
+| `setFuturesPositionAutoMargin(params)` | Enable or disable auto-margin (`'on'` / `'off'`) |
+
+---
+
+## Orders
+
+| Method | Description |
+|---|---|
+| `futuresSubmitOrder(params)` | Place a single futures order |
+| `futuresCancelOrder(params)` | Cancel an order by `orderId` or `clientOid` |
+| `futuresBatchSubmitOrders(params)` | Place multiple orders in one request |
+| `futuresBatchCancelOrders(params)` | Cancel multiple orders by ID list |
+| `futuresCancelAllOrders(params)` | Cancel all open orders for a product type |
+| `futuresFlashClosePositions(params)` | Market-close one or all positions instantly |
+| `getFuturesOpenOrders(params)` | List currently open orders |
+| `getFuturesHistoricOrders(params)` | Paginated order history |
+| `getFuturesOrder(params)` | Retrieve a single order |
+| `futuresSubmitTPSLOrder(params)` | Place a take-profit / stop-loss order |
+| `futuresSubmitPlanOrder(params)` | Place a trigger (plan) order |
+| `futuresCancelPlanOrder(params)` | Cancel a plan order |
+
+### FuturesPlaceOrderRequestV2 parameters
+
+<ParamField body="symbol" type="string" required>
+  Contract symbol, e.g. `"BTCUSDT"`.
+</ParamField>
+
+<ParamField body="productType" type="FuturesProductTypeV2" required>
+  Market type, e.g. `"USDT-FUTURES"`.
+</ParamField>
+
+<ParamField body="marginMode" type="'isolated' | 'crossed'" required>
+  Margin mode. `'crossed'` shares margin across positions; `'isolated'` limits risk to the allocated margin.
+</ParamField>
+
+<ParamField body="marginCoin" type="string" required>
+  Settlement currency, e.g. `"USDT"` for USDT-FUTURES.
+</ParamField>
+
+<ParamField body="side" type="'buy' | 'sell'" required>
+  Order direction.
+</ParamField>
+
+<ParamField body="orderType" type="'limit' | 'market'" required>
+  Execution type.
+</ParamField>
+
+<ParamField body="size" type="string" required>
+  Quantity in contracts (use `minTradeNum` from `getFuturesContractConfig` as the minimum).
+</ParamField>
+
+<ParamField body="tradeSide" type="'open' | 'close'">
+  Required in hedge mode to specify whether this order opens or closes a position.
+</ParamField>
+
+<ParamField body="price" type="string">
+  Limit price. Required when `orderType` is `'limit'`.
+</ParamField>
+
+<ParamField body="reduceOnly" type="'YES' | 'NO'">
+  When `'YES'`, the order can only reduce an existing position.
+</ParamField>
+
+<ParamField body="presetStopSurplusPrice" type="string">
+  Preset take-profit price attached to this entry order.
+</ParamField>
+
+<ParamField body="presetStopLossPrice" type="string">
+  Preset stop-loss price attached to this entry order.
+</ParamField>
+
+---
+
+## Full example: open and close a position
+
+This example mirrors the workflow in the official SDK example file, covering balance check, contract rules lookup, order placement, position retrieval, and position close.
+
+<CodeGroup>
+```typescript Open a Long Position
+import { FuturesPlaceOrderRequestV2, RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const symbol = 'BTCUSDT';
+const productType = 'USDT-FUTURES';
+const marginCoin = 'USDT';
+
+// Check account balance
+const balanceResult = await client.getFuturesAccountAssets({ productType });
+const assetList = balanceResult.data.find(
+  (b) => b.marginCoin === marginCoin,
+)?.assetList;
+const usdtBalance = assetList?.find((a) => a.coin === 'USDT')?.balance;
+console.log('USDT balance:', usdtBalance);
+
+// Get minimum trade size
+const contractResult = await client.getFuturesContractConfig({
+  symbol,
+  productType,
+});
+const contractRules = contractResult.data.find((r) => r.symbol === symbol);
+if (!contractRules) throw new Error('Contract rules not found');
+
+// Place a market long order
+const order: FuturesPlaceOrderRequestV2 = {
+  symbol,
+  productType,
+  marginMode: 'crossed',
+  marginCoin,
+  side: 'buy',
+  orderType: 'market',
+  size: contractRules.minTradeNum,
+};
+
+const result = await client.futuresSubmitOrder(order);
+console.log('Order result:', result.data);
+```
+
+```typescript Close All Positions
+import { FuturesPlaceOrderRequestV2, RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const productType = 'USDT-FUTURES';
+
+const positions = await client.getFuturesPositions({ productType });
+const openPositions = positions.data.filter((p) => p.total !== '0');
+
+for (const position of openPositions) {
+  const closingSide = position.holdSide === 'long' ? 'sell' : 'buy';
+
+  const closeOrder: FuturesPlaceOrderRequestV2 = {
+    symbol: position.symbol,
+    productType,
+    marginMode: 'crossed',
+    marginCoin: position.marginCoin,
+    side: closingSide,
+    orderType: 'market',
+    size: position.available,
+  };
+
+  const result = await client.futuresSubmitOrder(closeOrder);
+  console.log(`Closed ${position.symbol}:`, result.data);
+}
+```
+
+```typescript Flash Close All Positions
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// Flash-close all open positions for a product type at market price
+const result = await client.futuresFlashClosePositions({
+  productType: 'USDT-FUTURES',
+});
+console.log('Flash close result:', result.data);
+```
+</CodeGroup>
+
+<Warning>
+  Flash close sends market orders for all open positions simultaneously. Ensure you intend to close every position before calling `futuresFlashClosePositions`.
+</Warning>

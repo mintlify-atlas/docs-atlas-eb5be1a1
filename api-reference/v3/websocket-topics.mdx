@@ -1,0 +1,404 @@
+---
+title: "V3 WebSocket Topics: Streams and Subscription Guide"
+sidebarTitle: "WS Topics"
+description: "Complete reference for all Bitget V3/UTA WebSocket topics including public market streams and private account events, with subscription examples."
+---
+
+The `WebsocketClientV3` connects to Bitget's V3/UTA WebSocket infrastructure over two dedicated endpoints: a **public** connection for market data streams and a **private** connection for authenticated account events. Topics are subscribed to by passing a `WsTopicRequest` object — containing the `topic` name and a `payload` with `instType` and optionally `symbol` — along with the appropriate `WS_KEY_MAP` key. The library handles authentication, reconnection, and resubscription automatically.
+
+```typescript
+import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.BITGET_API_KEY!,
+  apiSecret: process.env.BITGET_API_SECRET!,
+  apiPass: process.env.BITGET_API_PASS!,
+});
+
+// Listen for all data events
+wsClient.on('update', (data) => console.log('Update:', JSON.stringify(data)));
+wsClient.on('open', (data) => console.log('Connected:', data.wsKey));
+wsClient.on('close', () => console.log('Connection closed'));
+wsClient.on('error', (err) => console.error('WS Error:', err));
+```
+
+---
+
+## instType Values
+
+The `instType` field in the topic payload controls which market segment the subscription applies to:
+
+| `instType`       | Usage                                              |
+|------------------|----------------------------------------------------|
+| `UTA`            | Account-level private topics (account-wide scope)  |
+| `spot`           | Spot market topics                                 |
+| `usdt-futures`   | USDT-margined perpetual/delivery futures           |
+| `coin-futures`   | Coin-margined (inverse) perpetual/delivery futures |
+| `usdc-futures`   | USDC-margined perpetual futures                    |
+
+---
+
+## WsTopicRequest Interface
+
+All subscriptions use the `WsTopicRequest<topic, payload>` shape:
+
+```typescript
+interface WsTopicRequest<TWSTopic, TWSPayload> {
+  topic: TWSTopic;
+  payload?: TWSPayload;
+}
+```
+
+For V3 topics the payload carries the instType and optional symbol:
+
+```typescript
+// Public topic subscription shape
+{
+  topic: 'ticker' | 'kline' | 'books' | 'publicTrade',
+  payload: {
+    instType: 'spot' | 'usdt-futures' | 'coin-futures' | 'usdc-futures',
+    symbol?: string,   // e.g. 'BTCUSDT'
+  }
+}
+
+// Private topic subscription shape
+{
+  topic: 'account' | 'position' | 'fill' | 'order' | 'strategy-order',
+  payload: {
+    instType: 'UTA' | 'spot' | 'usdt-futures' | 'coin-futures' | 'usdc-futures',
+    symbol?: string,   // required for symbol-level private topics
+  }
+}
+```
+
+---
+
+## Public Topics (`WsPublicTopicV3`)
+
+Public topics are available without authentication and are routed via `WS_KEY_MAP.v3Public`.
+
+### `ticker`
+
+Real-time best bid/ask, last trade price, 24-hour volume, and open interest updates for a symbol.
+
+- **instType:** `spot`, `usdt-futures`, `coin-futures`, `usdc-futures`
+- **Symbol required:** Yes
+- **Key payload fields:** `lastPr`, `bidPr`, `askPr`, `baseVolume`, `quoteVolume`, `fundingRate` (futures only)
+
+### `kline`
+
+Candlestick (OHLCV) stream updates. The `symbol` field in the payload should include the interval suffix, e.g. `BTCUSDT_1m`.
+
+- **instType:** `spot`, `usdt-futures`, `coin-futures`, `usdc-futures`
+- **Symbol required:** Yes (format: `SYMBOL_INTERVAL`, e.g. `BTCUSDT_1H`)
+- **Key payload fields:** `open`, `high`, `low`, `close`, `baseVol`, `ts`
+
+### `books`
+
+Full order book snapshot and incremental diff updates.
+
+- **instType:** `spot`, `usdt-futures`, `coin-futures`, `usdc-futures`
+- **Symbol required:** Yes
+- **Key payload fields:** `bids` (array of `[price, size]`), `asks` (array of `[price, size]`), `ts`
+
+### `publicTrade`
+
+Stream of individual public trade executions as they occur on the matching engine.
+
+- **instType:** `spot`, `usdt-futures`, `coin-futures`, `usdc-futures`
+- **Symbol required:** Yes
+- **Key payload fields:** `tradeId`, `price`, `size`, `side`, `ts`
+
+---
+
+## Private Topics (`WsPrivateTopicV3`)
+
+Private topics carry authenticated account data and are routed via `WS_KEY_MAP.v3Private`. The WebSocket client automatically authenticates the private connection when you provide API credentials.
+
+<Note>
+  Private topics require a valid `apiKey`, `apiSecret`, and `apiPass` in the `WebsocketClientV3` constructor. The library performs the HMAC-SHA256 WebSocket login handshake automatically on connection. Do not subscribe to private topics on the public `WS_KEY_MAP.v3Public` key.
+</Note>
+
+### `account`
+
+Real-time unified account balance and equity updates triggered by trades, funding settlements, transfers, and PnL changes.
+
+- **instType:** `UTA` (account-wide, not symbol-specific)
+- **Symbol:** Not required
+- **Key payload fields:** equity, available balance, margin, per-coin asset breakdown
+
+### `position`
+
+Live position updates for open futures positions, including unrealised PnL, liquidation price, and margin changes.
+
+- **instType:** `usdt-futures`, `coin-futures`, or `usdc-futures`
+- **Symbol:** Optional (omit to receive all positions in the category)
+- **Key payload fields:** `symbol`, `posSide`, `qty`, `unrealisedPnl`, `liqPrice`, `marginMode`
+
+### `fill`
+
+Stream of private fill (execution) events as your orders are matched, including fee breakdown.
+
+- **instType:** `UTA` for cross-category fills, or a specific futures/spot instType
+- **Symbol:** Optional
+- **Key payload fields:** `orderId`, `symbol`, `price`, `size`, `side`, `fee`, `feeCoin`, `ts`
+
+### `order`
+
+Real-time order status updates — placements, modifications, partial fills, cancellations — for all open orders.
+
+- **instType:** `UTA` for all orders, or a specific instType
+- **Symbol:** Optional
+- **Key payload fields:** `orderId`, `clientOid`, `symbol`, `status`, `filledQty`, `remainingQty`, `avgFillPrice`
+
+### `strategy-order`
+
+Updates for strategy (TP/SL and trigger) orders — activations, modifications, and cancellations.
+
+- **instType:** `usdt-futures`, `coin-futures`, or `usdc-futures`
+- **Symbol:** Optional
+- **Key payload fields:** `orderId`, `symbol`, `type`, `status`, `triggerPrice`, `orderPrice`
+
+---
+
+## Subscription Examples
+
+<Tabs>
+  <Tab title="Public Topics">
+
+### Subscribe to Ticker and Order Book (Spot + Futures)
+
+```typescript
+import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3();
+
+wsClient.on('update', (data) => {
+  console.log(`[${data.topic}]`, JSON.stringify(data.data));
+});
+
+// Subscribe to multiple spot tickers
+await wsClient.subscribe(
+  [
+    { topic: 'ticker', payload: { instType: 'spot', symbol: 'BTCUSDT' } },
+    { topic: 'ticker', payload: { instType: 'spot', symbol: 'ETHUSDT' } },
+    // Futures ticker
+    {
+      topic: 'ticker',
+      payload: { instType: 'usdt-futures', symbol: 'BTCUSDT' },
+    },
+  ],
+  WS_KEY_MAP.v3Public,
+);
+
+// Subscribe to order book depth
+await wsClient.subscribe(
+  { topic: 'books', payload: { instType: 'usdt-futures', symbol: 'BTCUSDT' } },
+  WS_KEY_MAP.v3Public,
+);
+
+// Subscribe to public trades
+await wsClient.subscribe(
+  {
+    topic: 'publicTrade',
+    payload: { instType: 'spot', symbol: 'BTCUSDT' },
+  },
+  WS_KEY_MAP.v3Public,
+);
+```
+
+### Subscribe to Kline / Candlestick Stream
+
+The kline topic uses a combined symbol-interval format in the `symbol` field:
+
+```typescript
+// 1-minute BTC/USDT candles on spot
+await wsClient.subscribe(
+  {
+    topic: 'kline',
+    payload: { instType: 'spot', symbol: 'BTCUSDT_1m' },
+  },
+  WS_KEY_MAP.v3Public,
+);
+
+// 1-hour ETH/USDT candles on USDT-futures
+await wsClient.subscribe(
+  {
+    topic: 'kline',
+    payload: { instType: 'usdt-futures', symbol: 'ETHUSDT_1H' },
+  },
+  WS_KEY_MAP.v3Public,
+);
+
+// 4-hour BTC candles on coin-futures
+await wsClient.subscribe(
+  {
+    topic: 'kline',
+    payload: { instType: 'coin-futures', symbol: 'BTCUSD_4H' },
+  },
+  WS_KEY_MAP.v3Public,
+);
+```
+
+  </Tab>
+  <Tab title="Private Topics">
+
+### Subscribe to Account, Position, and Order Topics
+
+```typescript
+import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.BITGET_API_KEY!,
+  apiSecret: process.env.BITGET_API_SECRET!,
+  apiPass: process.env.BITGET_API_PASS!,
+});
+
+wsClient.on('update', (data) => {
+  switch (data.topic) {
+    case 'account':
+      console.log('Balance update:', data.data);
+      break;
+    case 'position':
+      console.log('Position update:', data.data);
+      break;
+    case 'order':
+      console.log('Order update:', data.data);
+      break;
+    case 'fill':
+      console.log('Fill event:', data.data);
+      break;
+    case 'strategy-order':
+      console.log('Strategy order update:', data.data);
+      break;
+  }
+});
+
+// Account-level balance updates (instType: UTA)
+await wsClient.subscribe(
+  { topic: 'account', payload: { instType: 'UTA' } },
+  WS_KEY_MAP.v3Private,
+);
+
+// All USDT-futures positions
+await wsClient.subscribe(
+  { topic: 'position', payload: { instType: 'usdt-futures' } },
+  WS_KEY_MAP.v3Private,
+);
+
+// Orders — UTA scope covers all categories
+await wsClient.subscribe(
+  { topic: 'order', payload: { instType: 'UTA' } },
+  WS_KEY_MAP.v3Private,
+);
+
+// Fill events
+await wsClient.subscribe(
+  { topic: 'fill', payload: { instType: 'UTA' } },
+  WS_KEY_MAP.v3Private,
+);
+
+// Strategy (TP/SL) order updates for BTCUSDT
+await wsClient.subscribe(
+  {
+    topic: 'strategy-order',
+    payload: { instType: 'usdt-futures', symbol: 'BTCUSDT' },
+  },
+  WS_KEY_MAP.v3Private,
+);
+```
+
+  </Tab>
+  <Tab title="Unsubscribe">
+
+### Unsubscribe from Topics
+
+Use `unsubscribe()` with the same topic request shapes used during subscription:
+
+```typescript
+// Unsubscribe from a single public ticker
+await wsClient.unsubscribe(
+  { topic: 'ticker', payload: { instType: 'spot', symbol: 'BTCUSDT' } },
+  WS_KEY_MAP.v3Public,
+);
+
+// Unsubscribe from multiple public topics at once
+await wsClient.unsubscribe(
+  [
+    { topic: 'books', payload: { instType: 'usdt-futures', symbol: 'BTCUSDT' } },
+    { topic: 'kline', payload: { instType: 'spot', symbol: 'ETHUSDT_1m' } },
+  ],
+  WS_KEY_MAP.v3Public,
+);
+
+// Unsubscribe from a private topic
+await wsClient.unsubscribe(
+  { topic: 'position', payload: { instType: 'usdt-futures' } },
+  WS_KEY_MAP.v3Private,
+);
+```
+
+  </Tab>
+</Tabs>
+
+---
+
+## Full Listener Setup Example
+
+```typescript
+import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.BITGET_API_KEY!,
+  apiSecret: process.env.BITGET_API_SECRET!,
+  apiPass: process.env.BITGET_API_PASS!,
+});
+
+// Lifecycle events
+wsClient.on('open', ({ wsKey }) => console.log(`[${wsKey}] Connected`));
+wsClient.on('close', ({ wsKey }) => console.log(`[${wsKey}] Disconnected`));
+wsClient.on('error', (err) => console.error('WS Error:', err));
+wsClient.on('reconnect', ({ wsKey }) =>
+  console.log(`[${wsKey}] Reconnecting...`),
+);
+
+// Data handler
+wsClient.on('update', (msg) => {
+  const { topic, data } = msg;
+  console.log(`[${topic}]`, JSON.stringify(data).slice(0, 200));
+});
+
+async function startStreams() {
+  // Public streams
+  await wsClient.subscribe(
+    [
+      { topic: 'ticker', payload: { instType: 'spot', symbol: 'BTCUSDT' } },
+      {
+        topic: 'ticker',
+        payload: { instType: 'usdt-futures', symbol: 'BTCUSDT' },
+      },
+      { topic: 'kline', payload: { instType: 'spot', symbol: 'BTCUSDT_1m' } },
+    ],
+    WS_KEY_MAP.v3Public,
+  );
+
+  // Private streams
+  await wsClient.subscribe(
+    [
+      { topic: 'account', payload: { instType: 'UTA' } },
+      { topic: 'order', payload: { instType: 'UTA' } },
+      { topic: 'fill', payload: { instType: 'UTA' } },
+      { topic: 'position', payload: { instType: 'usdt-futures' } },
+    ],
+    WS_KEY_MAP.v3Private,
+  );
+
+  console.log('All WebSocket subscriptions active');
+}
+
+startStreams().catch(console.error);
+```
+
+<Tip>
+  Call `wsClient.connectAll()` before subscribing to pre-establish both the public and private WebSocket connections simultaneously. This reduces the latency of your first subscription.
+</Tip>

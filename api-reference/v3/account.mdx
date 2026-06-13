@@ -1,0 +1,507 @@
+---
+title: "V3 Account API: Balances, Transfers, and Withdrawals"
+sidebarTitle: "Account"
+description: "RestClientV3 private account methods for balances, settings, leverage, transfers, deposits, withdrawals, and sub-account management on Bitget V3/UTA."
+---
+
+The `RestClientV3` account methods cover the full lifecycle of a Unified Trading Account (UTA): reading balances and settings, adjusting leverage and account mode, moving funds between sub-accounts, depositing and withdrawing assets, and managing sub-account creation. Every method on this page requires a valid API key, secret, and passphrase passed to the client constructor.
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: 'YOUR_API_KEY',
+  apiSecret: 'YOUR_API_SECRET',
+  apiPass: 'YOUR_API_PASSPHRASE',
+});
+```
+
+---
+
+## getBalances()
+
+Returns the unified account asset snapshot, including equity, available balance, margin, and per-coin breakdowns.
+
+**Endpoint:** `GET /api/v3/account/assets`
+
+```typescript
+const balances = await client.getBalances();
+console.log('Account assets:', balances.data);
+```
+
+---
+
+## getFundingAssets(params)
+
+Returns assets held in the **funding account** (separate from the UTA trading account). Optionally filter by coin.
+
+**Endpoint:** `GET /api/v3/account/funding-assets`
+
+<ParamField query="coin" type="string">
+  Optional coin filter, e.g. `USDT`. Returns all coins if omitted.
+</ParamField>
+
+```typescript
+const funding = await client.getFundingAssets({ coin: 'USDT' });
+console.log('Funding assets:', funding.data);
+```
+
+---
+
+## getAccountInfo()
+
+Returns account metadata: UID, parent account UID, inviter code, channel, IP whitelist, and API key permissions.
+
+**Endpoint:** `GET /api/v3/account/info`
+
+```typescript
+const info = await client.getAccountInfo();
+console.log('UID:', info.data.uid);
+```
+
+---
+
+## getAccountSettings()
+
+Returns the current account configuration, including hold mode (one-way or hedge), margin mode, default leverage, and per-symbol/coin overrides.
+
+**Endpoint:** `GET /api/v3/account/settings`
+
+```typescript
+const settings = await client.getAccountSettings();
+console.log('Hold mode:', settings.data);
+```
+
+---
+
+## adjustAccountMode(params)
+
+Switches the account level between `basic`, `advanced`, `delta` (delta-neutral), or `isolated` mode. Can also target a sub-account by passing `targetUid`.
+
+**Endpoint:** `POST /api/v3/account/adjust-account-mode`
+
+<ParamField body="mode" type="string" required>
+  Target account mode: `basic`, `advanced`, `delta`, or `isolated`.
+</ParamField>
+
+<ParamField body="targetUid" type="string">
+  Sub-account UID. Use when the master account switches mode on behalf of a sub-account.
+</ParamField>
+
+```typescript
+await client.adjustAccountMode({ mode: 'advanced' });
+```
+
+---
+
+## setLeverage(params)
+
+Sets the leverage for a specific symbol or coin in a futures or margin category.
+
+**Endpoint:** `POST /api/v3/account/set-leverage`
+
+<ParamField body="category" type="string" required>
+  One of `MARGIN`, `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField body="leverage" type="string" required>
+  Leverage multiplier as a string, e.g. `"10"`.
+</ParamField>
+
+<ParamField body="symbol" type="string">
+  Trading symbol, e.g. `BTCUSDT`. Required for symbol-level leverage.
+</ParamField>
+
+<ParamField body="coin" type="string">
+  Base coin, e.g. `BTC`. Used for coin-level leverage in `COIN-FUTURES`.
+</ParamField>
+
+<ParamField body="posSide" type="string">
+  Position side in hedge mode: `long` or `short`.
+</ParamField>
+
+```typescript
+await client.setLeverage({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+  leverage: '20',
+});
+```
+
+---
+
+## getFinancialRecords(params)
+
+Returns a paginated ledger of account financial events (deposits, withdrawals, fees, funding, PnL settlements).
+
+**Endpoint:** `GET /api/v3/account/financial-records`
+
+<ParamField query="category" type="string" required>
+  One of `SPOT`, `MARGIN`, `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField query="coin" type="string">
+  Filter by coin, e.g. `USDT`.
+</ParamField>
+
+<ParamField query="type" type="string">
+  Event type filter string.
+</ParamField>
+
+<ParamField query="startTime" type="string">
+  Start of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="endTime" type="string">
+  End of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="limit" type="string">
+  Max records per page.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Pagination cursor for the next page.
+</ParamField>
+
+```typescript
+const records = await client.getFinancialRecords({
+  category: 'USDT-FUTURES',
+  coin: 'USDT',
+  startTime: '1700000000000',
+  endTime: '1710000000000',
+  limit: '50',
+});
+console.log('Records:', records.data.list.length);
+```
+
+---
+
+## submitTransfer(params)
+
+Transfers funds between account sub-types (spot, UTA, P2P, futures, margin) for the current user.
+
+**Endpoint:** `POST /api/v3/account/transfer`
+
+<ParamField body="fromType" type="string" required>
+  Source account type: `spot`, `p2p`, `coin-futures`, `usdt-futures`, `usdc-futures`, `crossed-margin`, `isolated-margin`, or `uta`.
+</ParamField>
+
+<ParamField body="toType" type="string" required>
+  Destination account type. Same valid values as `fromType`.
+</ParamField>
+
+<ParamField body="coin" type="string" required>
+  Coin to transfer, e.g. `USDT`.
+</ParamField>
+
+<ParamField body="amount" type="string" required>
+  Amount to transfer as a decimal string, e.g. `"100"`.
+</ParamField>
+
+<ParamField body="symbol" type="string">
+  Required for `isolated-margin` transfers to specify the margin symbol.
+</ParamField>
+
+<ParamField body="allowBorrow" type="string">
+  Whether to allow automatic margin borrowing if the balance is insufficient. `yes` or `no`.
+</ParamField>
+
+```typescript
+const transfer = await client.submitTransfer({
+  fromType: 'spot',
+  toType: 'usdt-futures',
+  coin: 'USDT',
+  amount: '500',
+});
+console.log('Transfer ID:', transfer.data.transferId);
+```
+
+---
+
+## getTransferableCoins(params)
+
+Returns the list of coins that can currently be transferred between two specified account types.
+
+**Endpoint:** `GET /api/v3/account/transferable-coins`
+
+<ParamField query="fromType" type="string" required>
+  Source account type.
+</ParamField>
+
+<ParamField query="toType" type="string" required>
+  Destination account type.
+</ParamField>
+
+```typescript
+const coins = await client.getTransferableCoins({
+  fromType: 'spot',
+  toType: 'usdt-futures',
+});
+console.log('Transferable coins:', coins.data);
+```
+
+---
+
+## submitWithdraw(params)
+
+Initiates a withdrawal — either on-chain or an internal transfer to another Bitget UID.
+
+**Endpoint:** `POST /api/v3/account/withdraw`
+
+<ParamField body="coin" type="string" required>
+  Coin to withdraw, e.g. `USDT`.
+</ParamField>
+
+<ParamField body="transferType" type="string" required>
+  `on_chain` for a blockchain withdrawal or `internal_transfer` for a Bitget-to-Bitget transfer.
+</ParamField>
+
+<ParamField body="address" type="string" required>
+  Destination address (on-chain) or UID/email/phone (internal transfer).
+</ParamField>
+
+<ParamField body="size" type="string" required>
+  Amount to withdraw as a decimal string.
+</ParamField>
+
+<ParamField body="chain" type="string">
+  Blockchain network, e.g. `TRC20`, `ERC20`. Required for on-chain withdrawals.
+</ParamField>
+
+<ParamField body="tag" type="string">
+  Memo or tag field for networks that require it (e.g. XRP).
+</ParamField>
+
+<ParamField body="clientOid" type="string">
+  Client-assigned order ID for idempotency.
+</ParamField>
+
+```typescript
+const withdrawal = await client.submitWithdraw({
+  coin: 'USDT',
+  transferType: 'on_chain',
+  address: '0xYourWalletAddress',
+  chain: 'ERC20',
+  size: '100',
+  clientOid: `withdraw-${Date.now()}`,
+});
+console.log('Withdrawal ID:', withdrawal.data.orderId);
+```
+
+---
+
+## getDepositAddress(params)
+
+Returns the deposit address (and optionally additional addresses) for a given coin and blockchain network.
+
+**Endpoint:** `GET /api/v3/account/deposit-address`
+
+<ParamField query="coin" type="string" required>
+  Coin to generate or retrieve the deposit address for, e.g. `BTC`, `USDT`.
+</ParamField>
+
+<ParamField query="chain" type="string">
+  Blockchain network filter, e.g. `ERC20`, `TRC20`.
+</ParamField>
+
+<ParamField query="size" type="string">
+  Number of addresses to return.
+</ParamField>
+
+```typescript
+const addressInfo = await client.getDepositAddress({
+  coin: 'USDT',
+  chain: 'TRC20',
+});
+console.log('Deposit address:', addressInfo.data.address);
+```
+
+---
+
+## getDepositRecords(params)
+
+Returns paginated deposit history for the account within a specified time range.
+
+**Endpoint:** `GET /api/v3/account/deposit-records`
+
+<ParamField query="startTime" type="string" required>
+  Start of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="endTime" type="string" required>
+  End of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="coin" type="string">
+  Filter by coin.
+</ParamField>
+
+<ParamField query="orderId" type="string">
+  Filter by Bitget deposit order ID.
+</ParamField>
+
+```typescript
+const deposits = await client.getDepositRecords({
+  startTime: '1700000000000',
+  endTime: '1710000000000',
+  coin: 'USDT',
+});
+```
+
+---
+
+## getWithdrawRecords(params)
+
+Returns paginated withdrawal history within the specified time range.
+
+**Endpoint:** `GET /api/v3/account/withdrawal-records`
+
+<ParamField query="startTime" type="string" required>
+  Start of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="endTime" type="string" required>
+  End of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="coin" type="string">
+  Filter by coin.
+</ParamField>
+
+<ParamField query="orderId" type="string">
+  Filter by Bitget withdrawal order ID.
+</ParamField>
+
+<ParamField query="clientOid" type="string">
+  Filter by client-assigned order ID.
+</ParamField>
+
+```typescript
+const withdrawals = await client.getWithdrawRecords({
+  startTime: '1700000000000',
+  endTime: '1710000000000',
+});
+```
+
+---
+
+## createSubAccount(params)
+
+Creates a new sub-account under the master account.
+
+**Endpoint:** `POST /api/v3/user/create-sub`
+
+<ParamField body="username" type="string" required>
+  Username for the new sub-account.
+</ParamField>
+
+<ParamField body="accountMode" type="string">
+  Initial account mode for the sub-account: `classic` or `unified`.
+</ParamField>
+
+<ParamField body="note" type="string">
+  An optional label or note for identifying the sub-account.
+</ParamField>
+
+```typescript
+const sub = await client.createSubAccount({
+  username: 'trading-bot-1',
+  accountMode: 'unified',
+  note: 'Automated strategy sub-account',
+});
+console.log('Sub UID:', sub.data.uid);
+```
+
+---
+
+## getSubAccountList(params)
+
+Returns a paginated list of all sub-accounts belonging to the master account.
+
+**Endpoint:** `GET /api/v3/user/sub-list`
+
+<ParamField query="limit" type="string">
+  Max results per page.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Pagination cursor.
+</ParamField>
+
+```typescript
+const subs = await client.getSubAccountList({ limit: '20' });
+console.log('Sub-accounts:', subs.data.list.length);
+```
+
+---
+
+## submitRepay(params)
+
+Repays outstanding margin debt using a specified set of repayable and payment coins.
+
+**Endpoint:** `POST /api/v3/account/repay`
+
+<ParamField body="repayableCoinList" type="string[]" required>
+  Array of coin symbols to repay, e.g. `["USDT", "BTC"]`.
+</ParamField>
+
+<ParamField body="paymentCoinList" type="string[]" required>
+  Array of coin symbols to use as payment, e.g. `["USDT"]`.
+</ParamField>
+
+```typescript
+const repay = await client.submitRepay({
+  repayableCoinList: ['USDT'],
+  paymentCoinList: ['USDT'],
+});
+```
+
+---
+
+## Complete Account Workflow Example
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.BITGET_API_KEY!,
+  apiSecret: process.env.BITGET_API_SECRET!,
+  apiPass: process.env.BITGET_API_PASS!,
+});
+
+async function accountWorkflow() {
+  // 1. Check balances
+  const balances = await client.getBalances();
+  console.log('Account assets:', balances.data);
+
+  // 2. Get account settings
+  const settings = await client.getAccountSettings();
+  console.log('Settings:', settings.data);
+
+  // 3. Transfer USDT from spot to futures
+  const transfer = await client.submitTransfer({
+    fromType: 'spot',
+    toType: 'usdt-futures',
+    coin: 'USDT',
+    amount: '1000',
+  });
+  console.log('Transfer ID:', transfer.data.transferId);
+
+  // 4. Set leverage for BTC futures
+  await client.setLeverage({
+    category: 'USDT-FUTURES',
+    symbol: 'BTCUSDT',
+    leverage: '10',
+  });
+
+  // 5. Check deposit address
+  const deposit = await client.getDepositAddress({
+    coin: 'USDT',
+    chain: 'TRC20',
+  });
+  console.log('Deposit address:', deposit.data.address);
+}
+
+accountWorkflow().catch(console.error);
+```

@@ -1,0 +1,255 @@
+---
+title: "V2 Spot Trading API: Orders, Account, and Market Data"
+sidebarTitle: "Spot"
+description: "RestClientV2 spot trading methods for market data, account balances, order placement, and portfolio management on Bitget's classic V2 API."
+---
+
+The `RestClientV2` class exposes a comprehensive set of spot trading methods that cover public market data, authenticated account management, and full order lifecycle operations. All methods return typed `Promise<APIResponse<T>>` values, enabling clean async/await patterns in both TypeScript and JavaScript projects. Public endpoints require no credentials; account and order endpoints require `apiKey`, `apiSecret`, and `apiPass` at client construction time.
+
+## Market Data
+
+These endpoints are public and do not require authentication.
+
+| Method | Description |
+|---|---|
+| `getSpotCoinInfo(params?)` | Returns coin metadata; optionally filter by `coin` |
+| `getSpotSymbolInfo(params?)` | Returns trading symbol rules; optionally filter by `symbol` |
+| `getSpotTicker(params?)` | Real-time ticker snapshot; pass `{ symbol }` for a single pair |
+| `getSpotMergeDepth(params)` | Merged order book depth at configurable precision |
+| `getSpotOrderBookDepth(params)` | Raw order book depth for a symbol and limit |
+| `getSpotCandles(params)` | OHLCV candles for a symbol, granularity, and optional time range |
+| `getSpotHistoricCandles(params)` | Historical candles extending beyond the rolling window |
+| `getSpotRecentTrades(params)` | Latest executed trades for a symbol |
+
+### Candle granularity values
+
+The `granularity` field in `SpotCandlesRequestV2` accepts:
+
+```
+'1min' | '5min' | '15min' | '30min' | '1h' | '4h' | '6h' | '12h'
+| '1day' | '3day' | '1week' | '1M'
+| '6Hutc' | '12Hutc' | '1Dutc' | '3Dutc' | '1Wutc' | '1Mutc'
+```
+
+<CodeGroup>
+```typescript Public Ticker
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2();
+
+// Get ticker for a single symbol
+const tickerResult = await client.getSpotTicker({ symbol: 'BTCUSDT' });
+console.log('Ticker:', tickerResult.data);
+
+// Get all spot tickers (omit params)
+const allTickers = await client.getSpotTicker();
+console.log('All tickers:', allTickers.data.length);
+```
+
+```typescript Candles
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2();
+
+const candles = await client.getSpotCandles({
+  symbol: 'BTCUSDT',
+  granularity: '1h',
+  limit: '100',
+});
+console.log('Candles:', candles.data);
+```
+</CodeGroup>
+
+---
+
+## Account
+
+These endpoints require authentication (`apiKey`, `apiSecret`, `apiPass`).
+
+| Method | Description |
+|---|---|
+| `getSpotAccount()` | Returns the spot account overview |
+| `getSpotAccountAssets(params?)` | Lists asset balances; optionally filter by `coin` |
+| `getSpotAccountBills(params)` | Paginates through account billing records |
+| `getSpotDepositAddress(params)` | Retrieves a deposit address for a coin and chain |
+| `getSpotDepositHistory(params?)` | Lists deposit history with optional filters |
+| `getSpotWithdrawalHistory(params?)` | Lists withdrawal records |
+| `spotWithdraw(params)` | Submits a withdrawal request |
+| `spotTransfer(params)` | Transfers funds between account types |
+| `getSpotTransferHistory(params?)` | Lists transfer records |
+| `getSpotTransferableCoins(params)` | Returns coins that can be transferred between two account types |
+
+---
+
+## Orders
+
+All order endpoints require authentication.
+
+| Method | Description |
+|---|---|
+| `spotSubmitOrder(params)` | Places a single spot order |
+| `spotCancelOrder(params)` | Cancels an order by `orderId` or `clientOid` |
+| `spotBatchSubmitOrders(params)` | Places up to 50 orders in a single request |
+| `spotBatchCancelOrders(params)` | Cancels multiple orders by ID list |
+| `spotCancelandSubmitOrder(params)` | Atomically cancels an existing order and replaces it |
+| `getSpotOpenOrders(params?)` | Returns all currently open orders |
+| `getSpotHistoricOrders(params)` | Paginates through historical orders |
+| `getSpotOrder(params)` | Retrieves a single order by `orderId` or `clientOid` |
+| `getSpotFills(params)` | Returns fill/trade records |
+| `spotSubmitPlanOrder(params)` | Places a trigger (plan) order |
+| `spotCancelPlanOrder(params)` | Cancels a trigger order |
+| `getSpotCurrentPlanOrders(params)` | Lists active trigger orders |
+| `getSpotHistoricPlanOrders(params)` | Lists historical trigger orders |
+
+### SpotOrderRequestV2 parameters
+
+<ParamField body="symbol" type="string" required>
+  Trading pair symbol, e.g. `"BTCUSDT"`.
+</ParamField>
+
+<ParamField body="side" type="'buy' | 'sell'" required>
+  Order direction.
+</ParamField>
+
+<ParamField body="orderType" type="'limit' | 'market'" required>
+  Order execution type. Use `'market'` for immediate fill at best price.
+</ParamField>
+
+<ParamField body="force" type="'gtc' | 'post_only' | 'fok' | 'ioc'" required>
+  Time-in-force policy. `'gtc'` (Good Till Cancel) is the standard default.
+</ParamField>
+
+<ParamField body="size" type="string" required>
+  Order quantity in base currency (e.g. BTC amount for BTCUSDT).
+</ParamField>
+
+<ParamField body="price" type="string">
+  Limit price. Required when `orderType` is `'limit'`.
+</ParamField>
+
+<ParamField body="clientOid" type="string">
+  Client-assigned order ID for deduplication and tracking.
+</ParamField>
+
+<ParamField body="stpMode" type="'none' | 'cancel_taker' | 'cancel_maker' | 'cancel_both'">
+  Self-Trade Prevention mode. Defaults to `'none'`.
+</ParamField>
+
+<ParamField body="presetTakeProfitPrice" type="string">
+  Preset take-profit trigger price attached to this order.
+</ParamField>
+
+<ParamField body="presetStopLossPrice" type="string">
+  Preset stop-loss trigger price attached to this order.
+</ParamField>
+
+### Code examples
+
+<CodeGroup>
+```typescript Place a Spot Order
+import { RestClientV2, SpotOrderRequestV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const order: SpotOrderRequestV2 = {
+  symbol: 'BTCUSDT',
+  side: 'buy',
+  orderType: 'limit',
+  force: 'gtc',
+  price: '60000',
+  size: '0.001',
+  clientOid: `my-order-${Date.now()}`,
+};
+
+const result = await client.spotSubmitOrder(order);
+console.log('Order ID:', result.data.orderId);
+```
+
+```typescript Market Sell (Full Balance)
+import { RestClientV2, SpotOrderRequestV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// Fetch available BTC balance
+const assets = await client.getSpotAccountAssets();
+const btc = assets.data.find((a) => a.coin === 'BTC');
+const available = btc?.available ?? '0';
+
+if (Number(available) > 0) {
+  const order: SpotOrderRequestV2 = {
+    symbol: 'BTCUSDT',
+    side: 'sell',
+    orderType: 'market',
+    force: 'gtc',
+    size: available,
+  };
+  const result = await client.spotSubmitOrder(order);
+  console.log('Sell result:', result.data);
+}
+```
+
+```typescript Cancel Order
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const cancelResult = await client.spotCancelOrder({
+  symbol: 'BTCUSDT',
+  orderId: '123456789',
+});
+console.log('Cancelled:', cancelResult.data);
+```
+</CodeGroup>
+
+---
+
+## Batch Order Example
+
+<CodeGroup>
+```typescript Batch Submit Orders
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const batchResult = await client.spotBatchSubmitOrders({
+  symbol: 'BTCUSDT',
+  orderList: [
+    {
+      side: 'buy',
+      orderType: 'limit',
+      force: 'gtc',
+      price: '59000',
+      size: '0.001',
+    },
+    {
+      side: 'buy',
+      orderType: 'limit',
+      force: 'gtc',
+      price: '58000',
+      size: '0.001',
+    },
+  ],
+});
+console.log('Batch result:', batchResult.data);
+```
+</CodeGroup>
+
+<Note>
+  All numeric values (prices, sizes, amounts) are passed as **strings** to avoid floating-point precision issues. Parse them with `Number()` or a decimal library only when performing arithmetic.
+</Note>

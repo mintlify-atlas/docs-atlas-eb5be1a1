@@ -1,0 +1,204 @@
+---
+title: "V2 Margin Trading API: Borrow, Orders, and Repay"
+sidebarTitle: "Margin"
+description: "RestClientV2 margin trading methods for cross and isolated margin accounts, borrowing, order placement, repayment, and risk management."
+---
+
+The `RestClientV2` class supports both cross and isolated margin trading through a consistent API surface. Every margin method accepts a `marginType` parameter of type `MarginType` — either `'crossed'` or `'isolated'` — which is validated at runtime and routes the request to the appropriate endpoint path (`/api/v2/margin/crossed/...` or `/api/v2/margin/isolated/...`). All methods in this section require authentication.
+
+<Note>
+  **Cross vs. isolated margin**: In `'crossed'` mode, all margin positions share a single pool of collateral. In `'isolated'` mode, each position has its own dedicated margin allocation, limiting losses to that amount. Pass `marginType` as the first argument to every margin method to select the correct mode.
+</Note>
+
+---
+
+## Account
+
+| Method | Description |
+|---|---|
+| `getMarginCurrencies()` | Lists all supported margin trading currencies (no `marginType` required) |
+| `getMarginAccountAssets(marginType, params?)` | Returns asset balances; optionally filter by `coin` |
+| `getMarginRiskRate(marginType)` | Returns risk rate ratios across your margin positions |
+| `getMarginMaxBorrowable(marginType, params)` | Maximum borrowable amount for a given coin |
+| `getMarginMaxTransferable(marginType, params)` | Maximum transferable amount for a given coin |
+| `getMarginInterestRateAndMaxBorrowable(marginType, params)` | Current interest rate and borrowing limits per coin |
+| `getMarginTierConfiguration(marginType, params)` | Risk tier table for a coin |
+| `getMarginLoanGrowthRate(params)` | Loan growth rate data from the market insights endpoint |
+| `getMarginFinancialHistory(marginType, params)` | Paginated financial records (transfers, fees, interest) |
+
+---
+
+## Orders
+
+| Method | Description |
+|---|---|
+| `marginSubmitOrder(marginType, params)` | Places a single margin order |
+| `marginCancelOrder(marginType, params)` | Cancels an order by `orderId` or `clientOid` |
+| `marginBatchSubmitOrders(marginType, params)` | Places multiple orders in one call |
+| `marginBatchCancelOrders(marginType, params)` | Cancels multiple orders by ID list |
+| `getMarginOpenOrders(marginType, params)` | Lists currently open orders |
+| `getMarginHistoricOrders(marginType, params)` | Paginated order history |
+| `getMarginHistoricOrderFills(marginType, params)` | Paginated fill records |
+| `getMarginTransactionRecords(params)` | Tax/accounting transaction records via `/api/v2/tax/margin-record` |
+
+### MarginPlaceOrderRequestV2 parameters
+
+<ParamField body="symbol" type="string" required>
+  Trading pair symbol, e.g. `"BTCUSDT"`.
+</ParamField>
+
+<ParamField body="side" type="'buy' | 'sell'" required>
+  Order direction.
+</ParamField>
+
+<ParamField body="orderType" type="'limit' | 'market'" required>
+  Execution type.
+</ParamField>
+
+<ParamField body="force" type="'gtc' | 'post_only' | 'fok' | 'ioc'" required>
+  Time-in-force policy.
+</ParamField>
+
+<ParamField body="loanType" type="'normal' | 'autoLoan' | 'autoRepay' | 'autoLoanAndRepay'" required>
+  Controls automatic borrowing and repayment behavior. Use `'autoLoan'` to borrow automatically when placing an order, `'autoRepay'` to repay automatically on fill, or `'autoLoanAndRepay'` for both.
+</ParamField>
+
+<ParamField body="baseSize" type="string">
+  Order quantity in base currency. Either `baseSize` or `quoteSize` must be provided.
+</ParamField>
+
+<ParamField body="quoteSize" type="string">
+  Order quantity in quote currency. Either `baseSize` or `quoteSize` must be provided.
+</ParamField>
+
+<ParamField body="price" type="string">
+  Limit price. Required when `orderType` is `'limit'`.
+</ParamField>
+
+<ParamField body="clientOid" type="string">
+  Optional client-assigned order ID.
+</ParamField>
+
+---
+
+## Borrow / Repay
+
+| Method | Description |
+|---|---|
+| `marginBorrow(marginType, params)` | Borrows a specific coin amount against collateral |
+| `marginRepay(marginType, params)` | Repays a specific borrow via `repayId` |
+| `marginFlashRepay(marginType, params)` | Instantly repays all debt for a coin using available balance |
+| `getMarginFlashRepayResult(marginType, params)` | Polls the result of a flash repay operation |
+| `getMarginBorrowHistory(marginType, params)` | Paginated borrow history |
+| `getMarginRepayHistory(marginType, params)` | Paginated repayment history |
+| `getMarginInterestHistory(marginType, params)` | Paginated interest charge history |
+| `getMarginLiquidationHistory(marginType, params)` | Paginated liquidation event history |
+| `getMarginLiquidationOrders(marginType, params)` | Paginated liquidation order records |
+
+---
+
+## Borrow → Trade → Repay workflow
+
+The following example demonstrates the full manual borrow-trade-repay cycle using isolated margin on the BTCUSDT pair.
+
+<CodeGroup>
+```typescript Borrow Funds
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const marginType = 'isolated';
+
+// Check how much USDT we can borrow
+const maxBorrow = await client.getMarginMaxBorrowable(marginType, {
+  coin: 'USDT',
+});
+console.log('Max borrowable USDT:', maxBorrow.data);
+
+// Borrow USDT for margin trading
+const borrow = await client.marginBorrow(marginType, {
+  loanId: `loan-${Date.now()}`,
+  symbol: 'BTCUSDT',
+  coin: 'USDT',
+  borrowAmount: '100',
+});
+console.log('Borrow result:', borrow.data);
+```
+
+```typescript Place a Margin Order
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const marginType = 'isolated';
+
+// Place a limit buy order using borrowed USDT
+const order = await client.marginSubmitOrder(marginType, {
+  symbol: 'BTCUSDT',
+  side: 'buy',
+  orderType: 'limit',
+  force: 'gtc',
+  loanType: 'normal',
+  price: '60000',
+  baseSize: '0.001',
+});
+console.log('Order ID:', order.data.orderId);
+```
+
+```typescript Repay Debt
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const marginType = 'isolated';
+
+// Flash-repay all USDT debt automatically
+const flashRepay = await client.marginFlashRepay(marginType, {
+  coin: 'USDT',
+});
+console.log('Flash repay initiated:', flashRepay.data.repayId);
+
+// Poll result
+const repayResult = await client.getMarginFlashRepayResult(marginType, {
+  idList: flashRepay.data.repayId,
+});
+console.log('Repay status:', repayResult.data);
+```
+
+```typescript Check Risk Rate
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// Monitor risk rate to avoid liquidation
+const riskRate = await client.getMarginRiskRate('crossed');
+console.log('Risk rates:', riskRate.data);
+
+// A riskRateRatio approaching 1.0 indicates near-liquidation
+for (const position of riskRate.data) {
+  if (Number(position.riskRateRatio) > 0.8) {
+    console.warn(`⚠️ High risk on ${position.symbol}: ${position.riskRateRatio}`);
+  }
+}
+```
+</CodeGroup>
+
+<Warning>
+  Monitor your risk rate regularly when running leveraged margin positions. A `riskRateRatio` near `1.0` triggers liquidation. Consider using `'autoLoanAndRepay'` as the `loanType` to automate debt management.
+</Warning>

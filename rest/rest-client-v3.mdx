@@ -1,0 +1,369 @@
+---
+title: "RestClientV3: Bitget Unified Trading Account REST API"
+sidebarTitle: "REST Client V3"
+description: "Use RestClientV3 to access Bitget's V3/UTA REST APIs for market data, account management, trading, copy trading, earn, and more."
+---
+
+`RestClientV3` is the primary REST client for Bitget's **Unified Trading Account (UTA)** platform. It targets Bitget's `/api/v3/` endpoints, which consolidate spot, futures, and margin into a single account model. If your Bitget account has been upgraded to UTA, this is the client you should use for all REST API calls — from public market data all the way through to order management, copy trading, and earn products.
+
+## Installation
+
+<Steps>
+  <Step title="Install the package">
+    ```bash
+    npm install bitget-api
+    ```
+  </Step>
+  <Step title="Import and instantiate">
+    <CodeGroup>
+      ```typescript ESM
+      import { RestClientV3 } from 'bitget-api';
+
+      const client = new RestClientV3({
+        apiKey: 'YOUR_API_KEY',
+        apiSecret: 'YOUR_API_SECRET',
+        apiPass: 'YOUR_API_PASS',
+      });
+      ```
+
+      ```javascript CJS
+      const { RestClientV3 } = require('bitget-api');
+
+      const client = new RestClientV3({
+        apiKey: 'YOUR_API_KEY',
+        apiSecret: 'YOUR_API_SECRET',
+        apiPass: 'YOUR_API_PASS',
+      });
+      ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+<Note>
+  **V3/UTA requires an account upgrade.** The `/api/v3/` endpoints are only available to accounts that have been upgraded to Bitget's Unified Trading Account. If your account is still on the classic structure, use [`RestClientV2`](/rest/rest-client-v2) instead. You can check upgrade status via `getUnifiedAccountSwitchStatus()`.
+</Note>
+
+---
+
+## Constructor Options
+
+The `RestClientV3` constructor accepts an optional `RestClientOptions` object.
+
+<ParamField body="apiKey" type="string">
+  Your Bitget API key. Required for all authenticated (private) endpoints.
+</ParamField>
+
+<ParamField body="apiSecret" type="string">
+  Your Bitget API secret. Used to sign request payloads.
+</ParamField>
+
+<ParamField body="apiPass" type="string">
+  The passphrase you set when creating the API key — **not** your account login password.
+</ParamField>
+
+<ParamField body="demoTrading" type="boolean" default="false">
+  Set to `true` to connect to Bitget's [demo trading](https://www.bitget.com/api-doc/common/demotrading/restapi) environment. All requests will be routed to the paper-trading sandbox.
+</ParamField>
+
+<ParamField body="baseUrl" type="string">
+  Override the default REST base URL. Defaults to `https://api.bitget.com`. Useful for proxies or regional endpoints.
+</ParamField>
+
+<ParamField body="customSignMessageFn" type="(message: string, secret: string) => Promise<string>">
+  Provide a custom HMAC signing function. Useful for improving performance by substituting Node's built-in `crypto.createHmac` instead of the default Web Crypto implementation. See the `examples/auth/` folder for a reference implementation.
+</ParamField>
+
+---
+
+## Method Reference
+
+### Market Data
+
+These endpoints are **public** — no API credentials are required.
+
+| Method | Description |
+|--------|-------------|
+| `getServerTime()` | Returns the current Bitget server time in milliseconds. |
+| `getInstruments(params)` | Lists all tradable instruments for a given category (e.g. `SPOT`, `USDT-FUTURES`). |
+| `getMarketFeeGroup(params)` | Returns the fee group configuration for market instruments. |
+| `getTickers(params)` | Returns the latest ticker snapshot for one or all symbols in a category. |
+| `getOrderBook(params)` | Returns the current order book (bids and asks) for a symbol. |
+| `getFills(params)` | Returns the most recent public trades for a symbol. |
+| `getCandles(params)` | Returns OHLCV candlestick data for a symbol and interval. |
+| `getHistoryCandles(params)` | Returns older historical candles beyond the live window. |
+| `getCurrentFundingRate(params)` | Returns the current funding rate for a perpetual futures symbol. |
+| `getHistoryFundingRate(params)` | Returns historical funding rate records for a futures symbol. |
+| `getOpenInterest(params)` | Returns the open interest for a futures symbol. |
+| `getPositionTier(params)` | Returns position tier / leverage bracket configuration for a symbol. |
+
+---
+
+### Account
+
+These endpoints are **private** — API credentials are required.
+
+| Method | Description |
+|--------|-------------|
+| `getBalances()` | Returns all asset balances for the unified account. |
+| `getFundingAssets(params)` | Returns funding wallet balances, optionally filtered by coin. |
+| `getAccountInfo()` | Returns account-level details (UID, account type, status). |
+| `getAccountSettings()` | Returns current account settings such as hold mode. |
+| `adjustAccountMode(params)` | Switches the account mode (e.g. single vs. hedge position mode). |
+| `setLeverage(params)` | Sets the leverage for a symbol and position side. |
+| `getFinancialRecords(params)` | Returns paginated financial transaction history. |
+| `submitTransfer(params)` | Transfers funds between wallets within the unified account. |
+| `submitWithdraw(params)` | Initiates an on-chain or internal withdrawal. |
+| `getDepositAddress(params)` | Returns the deposit address for a given coin and chain. |
+| `getDepositRecords(params)` | Returns deposit history with filtering options. |
+| `getWithdrawRecords(params)` | Returns withdrawal history with filtering options. |
+
+---
+
+### Trading
+
+These endpoints are **private**.
+
+| Method | Description |
+|--------|-------------|
+| `submitNewOrder(params)` | Places a new spot or futures order. |
+| `cancelOrder(params)` | Cancels a single open order by order ID or client order ID. |
+| `cancelAllOrders(params)` | Cancels all open orders for a symbol. |
+| `batchModifyOrders(params)` | Modifies multiple existing orders in a single request. |
+| `cancelBatchOrders(params)` | Cancels a batch of orders by their IDs. |
+| `countdownCancelAll(params)` | Sets a countdown timer after which all orders are auto-cancelled. |
+| `closeAllPositions(params)` | Sends market orders to close all open positions in a category. |
+
+---
+
+### Copy Trading
+
+These endpoints are **private** and apply to copy-trading lead accounts.
+
+| Method | Description |
+|--------|-------------|
+| `getCopyFuturesTradingPairs()` | Returns the futures trading pairs available to the copy-trading lead account. |
+| `copyFuturesTransfer(params)` | Transfers funds to or from the copy-trading lead account wallet. |
+
+---
+
+### Sub-accounts / Broker
+
+These endpoints are **private** and require broker or sub-account permissions.
+
+| Method | Description |
+|--------|-------------|
+| `createSubAccount(params)` | Creates a new sub-account under the master account. |
+| `getSubAccountList(params)` | Returns the list of sub-accounts with optional pagination. |
+
+---
+
+### Earn
+
+These endpoints are **private**.
+
+| Method | Description |
+|--------|-------------|
+| `getEarnEliteProducts()` | Returns available Elite earn products. |
+| `subscribeEarnElite(params)` | Subscribes the account to an Elite earn product. |
+
+---
+
+## Code Examples
+
+### Public Market Data — `getInstruments()`
+
+No credentials are needed for public endpoints. You can create the client without any options.
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3();
+
+(async () => {
+  try {
+    // List all SPOT instruments
+    const result = await client.getInstruments({ category: 'SPOT' });
+    console.log('Instruments:', result.data.length);
+    console.log('First instrument:', result.data[0]);
+
+    // Get the current candles for BTCUSDT
+    const candles = await client.getCandles({
+      symbol: 'BTCUSDT',
+      category: 'SPOT',
+      interval: '1m',
+    });
+    console.table(candles.data);
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+---
+
+### Authenticated Account Data — `getBalances()`
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+(async () => {
+  try {
+    const balanceResult = await client.getBalances();
+    const accountBalance = balanceResult.data;
+
+    console.log('Total USDT equity:', accountBalance.usdtEquity);
+    console.log('Assets:', JSON.stringify(accountBalance.assets, null, 2));
+
+    // Find a specific asset
+    const btcAsset = accountBalance.assets?.find((a) => a.coin === 'BTC');
+    console.log('BTC available:', btcAsset?.available);
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+---
+
+### Place a Spot Order — `submitNewOrder()`
+
+The `PlaceOrderRequestV3` type covers both spot and futures orders via the unified `category` field.
+
+```typescript
+import { PlaceOrderRequestV3, RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+(async () => {
+  try {
+    const balanceResult = await client.getBalances();
+    const allBalances = balanceResult.data;
+
+    const symbol = 'BTCUSDT';
+
+    // Fetch trading rules to get the minimum order quantity
+    const symbolsResult = await client.getInstruments({
+      category: 'SPOT',
+      symbol,
+    });
+    const btcRules = symbolsResult.data.find((rule) => rule.symbol === symbol);
+    if (!btcRules) {
+      return console.log('No rules found for ' + symbol);
+    }
+
+    const order: PlaceOrderRequestV3 = {
+      symbol,
+      side: 'sell',
+      orderType: 'market',
+      category: 'SPOT',
+      qty: btcRules.minOrderQty,
+    };
+
+    console.log('Submitting order:', order);
+    const result = await client.submitNewOrder(order);
+    console.log('Order result:', result);
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+---
+
+### Place a Futures Order — `submitNewOrder()` with `USDT-FUTURES`
+
+The same `submitNewOrder()` method handles futures orders. Set `category` to `USDT-FUTURES` (or `COIN-FUTURES`, `USDC-FUTURES`, etc.) as appropriate.
+
+```typescript
+import { PlaceOrderRequestV3, RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+(async () => {
+  try {
+    const symbol = 'BTCUSDT';
+
+    // Fetch trading rules for the futures symbol
+    const symbolRulesResult = await client.getInstruments({
+      category: 'USDT-FUTURES',
+      symbol,
+    });
+    const btcFuturesRule = symbolRulesResult.data.find(
+      (row) => row.symbol === symbol,
+    );
+    if (!btcFuturesRule) {
+      console.error('Failed to get trading rules for ' + symbol);
+      return;
+    }
+
+    const order: PlaceOrderRequestV3 = {
+      category: 'USDT-FUTURES',
+      orderType: 'market',
+      side: 'buy',
+      qty: btcFuturesRule.minOrderQty,
+      symbol,
+    };
+
+    console.log('Placing order:', order);
+    const result = await client.submitNewOrder(order);
+    console.log('Order result:', result);
+
+    // Check open positions
+    const positionsResult = await client.getCurrentPosition({
+      category: 'USDT-FUTURES',
+    });
+    const openPositions = positionsResult.data.list.filter(
+      (pos) => pos.total !== '0',
+    );
+    console.log('Open positions:', openPositions);
+
+    // Close all open positions with market orders
+    for (const position of openPositions) {
+      const closingSide = position.posSide === 'long' ? 'sell' : 'buy';
+      const closingOrder: PlaceOrderRequestV3 = {
+        category: 'USDT-FUTURES',
+        orderType: 'market',
+        side: closingSide,
+        qty: position.total,
+        symbol: position.symbol,
+      };
+      const closeResult = await client.submitNewOrder(closingOrder);
+      console.log('Close result:', closeResult);
+    }
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+---
+
+## Latency Diagnostics
+
+<Tip>
+  Call `client.fetchLatencySummary()` at startup to measure round-trip latency and clock skew between your server and Bitget. If the reported time difference exceeds 500 ms, you may experience authentication failures caused by timestamp drift. The method logs a full summary to the console and warns automatically if drift is excessive.
+</Tip>
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3();
+
+(async () => {
+  await client.fetchLatencySummary();
+})();
+```

@@ -1,0 +1,422 @@
+---
+title: "WebsocketAPIClient: Order Placement via WebSocket"
+sidebarTitle: "WS API Client"
+description: "Place and cancel orders on Bitget via a persistent WebSocket connection using WebsocketAPIClient, with a REST-like promise-based interface."
+---
+
+`WebsocketAPIClient` lets you place, cancel, and batch-manage orders over a persistent WebSocket connection rather than through individual HTTP requests. Each method call returns a `Promise` that resolves when the matching server response arrives, giving you a familiar `async/await` experience at significantly lower round-trip latency than REST. Internally, the client wraps a `WebsocketClientV3` instance and handles connection management, authentication, and request/response correlation automatically.
+
+<Warning>
+  `WebsocketAPIClient` uses the V3/UTA WebSocket API. Your Bitget account must
+  be upgraded to **Unified Account (UTA)** mode before API keys will work with
+  these endpoints.
+</Warning>
+
+## Installation
+
+```bash
+npm install bitget-api
+```
+
+## How It Differs from REST
+
+With the REST clients every call opens a new HTTP connection, serialises parameters, waits for a TCP round-trip, and parses the response. `WebsocketAPIClient` keeps a single authenticated WebSocket connection open and multiplexes all trading operations over it. The server matches each response to the originating request using a unique `id` field, and the SDK resolves the corresponding `Promise` automatically. The result is lower latency, especially for burst order workflows.
+
+## Instantiation
+
+```typescript
+import { WebsocketAPIClient } from 'bitget-api';
+
+const wsApiClient = new WebsocketAPIClient({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+```
+
+### Constructor Options
+
+<ParamField path="apiKey" type="string" required>
+  Your Bitget API key.
+</ParamField>
+
+<ParamField path="apiSecret" type="string" required>
+  Your Bitget API secret.
+</ParamField>
+
+<ParamField path="apiPass" type="string" required>
+  The passphrase set when creating the API key (not your account password).
+</ParamField>
+
+<ParamField path="attachEventListeners" type="boolean" default="true">
+  When `true` (default), the client attaches built-in console-log handlers for
+  the `open`, `reconnect`, `reconnected`, `authenticated`, and `exception`
+  events. Set to `false` if you want to register your own handlers via
+  `getWSClient().on(...)`.
+</ParamField>
+
+<ParamField path="demoTrading" type="boolean" default="false">
+  Set to `true` to route the connection to Bitget's demo trading WebSocket
+  endpoint.
+</ParamField>
+
+## Pre-warming the Connection
+
+<Tip>
+  Call `connectWSAPI()` before your first order request to pre-warm the
+  connection. This pays the authentication handshake cost upfront and removes
+  the latency spike on the first trade call.
+</Tip>
+
+```typescript
+// Resolves once the connection is authenticated and ready
+await wsApiClient.getWSClient().connectWSAPI();
+console.log('WS API connection ready');
+```
+
+## Available Methods
+
+### `submitNewOrder()`
+
+Place a single new order.
+
+```typescript
+submitNewOrder(
+  instType: BitgetInstTypeV3,
+  params: WSAPIPlaceOrderRequestV3,
+): Promise<WSAPIResponse<[WSAPIPlaceOrderResponseV3], 'place-order'>>
+```
+
+<CodeGroup>
+
+```typescript Spot Limit Order
+import { WebsocketAPIClient } from 'bitget-api';
+
+const wsApiClient = new WebsocketAPIClient({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+await wsApiClient.getWSClient().connectWSAPI();
+
+try {
+  const res = await wsApiClient.submitNewOrder('spot', {
+    symbol: 'BTCUSDT',
+    orderType: 'limit',
+    side: 'buy',
+    qty: '0.001',
+    price: '60000',
+    timeInForce: 'gtc',
+  });
+
+  console.log('Order placed:', res);
+  // res.args[0].orderId  → the exchange-assigned order ID
+  // res.args[0].clientOid → your client order ID (if provided)
+} catch (e) {
+  console.error('Order failed:', e);
+}
+```
+
+```typescript USDT-Futures Market Order
+import { WebsocketAPIClient } from 'bitget-api';
+
+const wsApiClient = new WebsocketAPIClient({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+await wsApiClient.getWSClient().connectWSAPI();
+
+try {
+  const res = await wsApiClient.submitNewOrder('usdt-futures', {
+    symbol: 'BTCUSDT',
+    orderType: 'market',
+    side: 'buy',
+    qty: '0.01',
+    posSide: 'long',
+    marginMode: 'crossed',
+  });
+
+  console.log('Futures order placed:', res);
+} catch (e) {
+  console.error('Futures order failed:', e);
+}
+```
+
+</CodeGroup>
+
+#### `WSAPIPlaceOrderRequestV3` Parameters
+
+<ParamField path="symbol" type="string" required>
+  The trading pair, e.g. `'BTCUSDT'`.
+</ParamField>
+
+<ParamField path="orderType" type="'limit' | 'market'" required>
+  Order type.
+</ParamField>
+
+<ParamField path="side" type="'buy' | 'sell'" required>
+  Order direction.
+</ParamField>
+
+<ParamField path="qty" type="string" required>
+  Order quantity as a string.
+</ParamField>
+
+<ParamField path="price" type="string">
+  Limit price (required for `limit` orders).
+</ParamField>
+
+<ParamField path="posSide" type="'long' | 'short'">
+  Position side for futures orders.
+</ParamField>
+
+<ParamField path="timeInForce" type="'gtc' | 'ioc' | 'fok' | 'post_only'">
+  Time-in-force policy. Defaults to `gtc`.
+</ParamField>
+
+<ParamField path="marginMode" type="'crossed' | 'isolated'">
+  Futures margin mode. Defaults to `crossed`.
+</ParamField>
+
+<ParamField path="clientOid" type="string">
+  Optional client-assigned order ID for idempotency tracking.
+</ParamField>
+
+<ParamField path="reduceOnly" type="'YES' | 'NO'">
+  Reduce-only flag (futures). Note: not supported for batch placement.
+</ParamField>
+
+---
+
+### `cancelOrder()`
+
+Cancel a single order by `orderId` or `clientOid`.
+
+```typescript
+cancelOrder(
+  instType: BitgetInstTypeV3,
+  params: CancelOrderRequestV3,
+): Promise<WSAPIResponse<[CancelOrderResponseV3], 'cancel-order'>>
+```
+
+```typescript
+try {
+  const res = await wsApiClient.cancelOrder('spot', {
+    clientOid: 'my-order-id-001',
+    // or: orderId: '1234567890',
+  });
+
+  console.log('Order cancelled:', res);
+} catch (e) {
+  console.error('Cancel failed:', e);
+}
+```
+
+---
+
+### `placeBatchOrders()`
+
+Submit multiple orders in a single WebSocket message.
+
+```typescript
+placeBatchOrders(
+  instType: BitgetInstTypeV3,
+  params: WSAPIPlaceOrderRequestV3[],
+): Promise<WSAPIResponse<WSAPIPlaceOrderResponseV3[], 'batch-place'>>
+```
+
+<Note>
+  Batch place requests never reject the outer Promise even if individual orders
+  fail. Always inspect the `code` and `msg` fields on each item in `res.args`
+  to detect per-order errors.
+</Note>
+
+```typescript
+const res = await wsApiClient.placeBatchOrders('spot', [
+  {
+    clientOid: 'batch-order-1',
+    symbol: 'BTCUSDT',
+    orderType: 'limit',
+    side: 'buy',
+    qty: '0.001',
+    price: '60000',
+    timeInForce: 'gtc',
+  },
+  {
+    clientOid: 'batch-order-2',
+    symbol: 'BTCUSDT',
+    orderType: 'limit',
+    side: 'buy',
+    qty: '0.002',
+    price: '59500',
+    timeInForce: 'gtc',
+  },
+]);
+
+// Check each order result individually
+for (const order of res.args) {
+  if (order.code !== '0') {
+    console.error(`Order ${order.clientOid} failed: ${order.msg}`);
+  } else {
+    console.log(`Order ${order.clientOid} placed: orderId=${order.orderId}`);
+  }
+}
+```
+
+---
+
+### `cancelBatchOrders()`
+
+Cancel multiple orders in a single WebSocket message.
+
+```typescript
+cancelBatchOrders(
+  instType: BitgetInstTypeV3,
+  params: CancelOrderRequestV3[],
+): Promise<WSAPIResponse<CancelOrderResponseV3[], 'batch-cancel'>>
+```
+
+```typescript
+const res = await wsApiClient.cancelBatchOrders('spot', [
+  { clientOid: 'batch-order-1' },
+  { orderId: '9876543210' },
+]);
+
+for (const result of res.args) {
+  console.log(`Cancel result: code=${result.code} msg=${result.msg}`);
+}
+```
+
+---
+
+### `getWSClient()`
+
+Returns the underlying `WebsocketClientV3` instance for full access to subscription and event APIs:
+
+```typescript
+const wsClient = wsApiClient.getWSClient();
+```
+
+## Custom Event Listeners
+
+If you set `attachEventListeners: false` at construction, wire up your own handlers via `getWSClient()`:
+
+```typescript
+import { WebsocketAPIClient } from 'bitget-api';
+
+const wsApiClient = new WebsocketAPIClient({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+  attachEventListeners: false, // disable built-in console logs
+});
+
+wsApiClient.getWSClient()
+  .on('open', (data) => {
+    console.log('WS connected:', data.wsKey);
+  })
+  .on('reconnect', ({ wsKey }) => {
+    console.log('WS reconnecting...', wsKey);
+  })
+  .on('reconnected', (data) => {
+    console.log('WS reconnected:', data?.wsKey);
+  })
+  .on('authenticated', (data) => {
+    console.log('WS authenticated:', data?.wsKey);
+  })
+  .on('exception', (data) => {
+    console.error('WS exception:', JSON.stringify(data));
+  });
+```
+
+## Advanced: `sendWSAPIRequest()`
+
+For operations not yet wrapped by `WebsocketAPIClient`, call `sendWSAPIRequest()` directly on the underlying `WebsocketClientV3`:
+
+```typescript
+import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+const res = await wsClient.sendWSAPIRequest(
+  WS_KEY_MAP.v3Private,
+  'place-order',
+  'spot',
+  {
+    symbol: 'BTCUSDT',
+    orderType: 'limit',
+    side: 'buy',
+    qty: '0.001',
+    price: '60000',
+    timeInForce: 'gtc',
+  },
+);
+
+console.log('Raw WS API response:', res);
+```
+
+## `instType` Values
+
+The first argument to every trading method is the instrument type. Valid values are:
+
+| `instType`       | Description                     |
+| ---------------- | ------------------------------- |
+| `'spot'`         | Spot trading pairs              |
+| `'usdt-futures'` | USDT-margined perpetual futures |
+| `'coin-futures'` | Coin-margined (inverse) futures |
+| `'usdc-futures'` | USDC-margined perpetual futures |
+
+## Complete Example
+
+```typescript
+import { DefaultLogger, WebsocketAPIClient } from 'bitget-api';
+
+(async () => {
+  const logger = {
+    ...DefaultLogger,
+    trace: (...params: unknown[]) => console.log('trace', ...params),
+  };
+
+  const wsApiClient = new WebsocketAPIClient(
+    {
+      apiKey: process.env.API_KEY,
+      apiSecret: process.env.API_SECRET,
+      apiPass: process.env.API_PASS,
+      // demoTrading: true,
+    },
+    logger,
+  );
+
+  // Pre-warm the authenticated WS API connection
+  await wsApiClient.getWSClient().connectWSAPI();
+
+  // Place a spot limit order
+  try {
+    const placeRes = await wsApiClient.submitNewOrder('spot', {
+      symbol: 'BTCUSDT',
+      orderType: 'limit',
+      side: 'buy',
+      qty: '0.001',
+      price: '60000',
+      timeInForce: 'gtc',
+      clientOid: 'my-unique-order-id',
+    });
+    console.log('Placed order:', placeRes.args[0].orderId);
+
+    // Cancel the same order by clientOid
+    const cancelRes = await wsApiClient.cancelOrder('spot', {
+      clientOid: 'my-unique-order-id',
+    });
+    console.log('Cancelled order:', cancelRes.args[0]);
+  } catch (e) {
+    console.error('Trading error:', e);
+  }
+})();
+```

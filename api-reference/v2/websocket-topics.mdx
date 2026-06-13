@@ -1,0 +1,277 @@
+---
+title: "V2 WebSocket Topics: Market and Account Streams"
+sidebarTitle: "WS Topics"
+description: "All available Bitget V2 WebSocket topics for spot and futures market data streams and private account events via WebsocketClientV2."
+---
+
+The `WebsocketClientV2` class manages two persistent connections — one public and one private — and exposes a single `subscribeTopic` method that automatically routes each topic to the correct endpoint. Public topics stream anonymously from `wss://ws.bitget.com/v2/ws/public`; private topics authenticate against `wss://ws.bitget.com/v2/ws/private` using your API credentials. All events are surfaced through an `EventEmitter` interface, making it straightforward to wire up any downstream data pipeline or trading bot.
+
+---
+
+## WebSocket connection keys
+
+The SDK uses `WS_KEY_MAP` to identify which underlying connection manages a given topic. You rarely need to reference these directly, but they are useful when calling `connect()` explicitly or when filtering `open`/`close`/`error` events.
+
+| Key | URL | Usage |
+|---|---|---|
+| `WS_KEY_MAP.v2Public` | `wss://ws.bitget.com/v2/ws/public` | Market data (no auth required) |
+| `WS_KEY_MAP.v2Private` | `wss://ws.bitget.com/v2/ws/private` | Account, orders, positions (auth required) |
+
+```typescript
+import { WebsocketClientV2, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// Proactively connect both sockets instead of waiting for the first subscription
+const [publicConn, privateConn] = wsClient.connectAll();
+await Promise.all([publicConn, privateConn]);
+```
+
+---
+
+## Instrument types (`BitgetInstTypeV2`)
+
+The first argument to `subscribeTopic` selects the market:
+
+| Value | Market |
+|---|---|
+| `'SPOT'` | Spot market |
+| `'USDT-FUTURES'` | USDT-margined perpetuals |
+| `'COIN-FUTURES'` | Coin-margined (inverse) perpetuals |
+| `'USDC-FUTURES'` | USDC-margined perpetuals |
+| `'SUSDT-FUTURES'` | Simulated USDT-margined (demo) |
+| `'SCOIN-FUTURES'` | Simulated coin-margined (demo) |
+| `'SUSDC-FUTURES'` | Simulated USDC-margined (demo) |
+
+---
+
+## `subscribeTopic` signature
+
+```typescript
+wsClient.subscribeTopic(
+  instType: BitgetInstTypeV2,   // market / instrument type
+  topic: WsTopicV2,             // public or private topic name
+  coin: string = 'default',     // symbol (e.g. 'BTCUSDT') or 'default' for private catch-all
+): void
+```
+
+Pass a specific symbol as the third argument for public market-data topics. For private topics, omit it or pass `'default'` to receive updates for all symbols.
+
+---
+
+## Public topics (`WsPublicTopicV2`)
+
+### Price and trade feeds
+
+| Topic | Description |
+|---|---|
+| `'ticker'` | Real-time best bid/ask, last price, 24 h volume, and funding rate |
+| `'trade'` | Individual trade executions as they occur |
+| `'index-price'` | Index price stream (margin pairs only) |
+
+### Order book depth
+
+| Topic | Description |
+|---|---|
+| `'books'` | Full depth snapshot + incremental updates |
+| `'books1'` | Top-of-book (best bid and ask only) |
+| `'books5'` | Top 5 levels snapshot |
+| `'books15'` | Top 15 levels snapshot |
+
+### Candle streams
+
+V2 candles are streamed in real time as each interval closes. UTC-suffixed variants align candle boundaries to midnight UTC rather than the exchange local time.
+
+<Tabs>
+  <Tab title="Local time">
+    | Topic | Interval |
+    |---|---|
+    | `'candle1m'` | 1 minute |
+    | `'candle5m'` | 5 minutes |
+    | `'candle15m'` | 15 minutes |
+    | `'candle30m'` | 30 minutes |
+    | `'candle1H'` | 1 hour |
+    | `'candle4H'` | 4 hours |
+    | `'candle6H'` | 6 hours |
+    | `'candle12H'` | 12 hours |
+    | `'candle1D'` | 1 day |
+    | `'candle3D'` | 3 days |
+    | `'candle1W'` | 1 week |
+    | `'candle1M'` | 1 month |
+  </Tab>
+  <Tab title="UTC-aligned">
+    | Topic | Interval |
+    |---|---|
+    | `'candle6Hutc'` | 6 hours (UTC) |
+    | `'candle12Hutc'` | 12 hours (UTC) |
+    | `'candle1Dutc'` | 1 day (UTC) |
+    | `'candle3Dutc'` | 3 days (UTC) |
+    | `'candle1Wutc'` | 1 week (UTC) |
+    | `'candle1Mutc'` | 1 month (UTC) |
+  </Tab>
+</Tabs>
+
+---
+
+## Private topics (`WsPrivateTopicV2`)
+
+All private topics require valid API credentials provided to the `WebsocketClientV2` constructor.
+
+### Spot and general
+
+| Topic | Description |
+|---|---|
+| `'account'` | Spot account balance changes on deposit, withdrawal, or trade |
+| `'orders'` | Spot order state changes (new, partially filled, filled, cancelled) |
+
+### Futures-specific
+
+| Topic | Description |
+|---|---|
+| `'positions'` | Real-time position updates (size, PnL, liquidation price) |
+| `'orders-algo'` | Algo (trigger/TP-SL) order lifecycle events |
+| `'positions-history'` | Closed position records as they settle |
+
+### Margin-specific
+
+| Topic | Description |
+|---|---|
+| `'account-crossed'` | Cross-margin account balance updates |
+| `'orders-crossed'` | Cross-margin order state changes |
+| `'account-isolated'` | Isolated margin account balance updates |
+| `'orders-isolated'` | Isolated margin order state changes |
+
+---
+
+## Subscription examples
+
+<CodeGroup>
+```typescript Public Ticker — Spot
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2();
+
+wsClient.on('update', (data) => {
+  console.log('Ticker update:', data);
+});
+
+wsClient.on('open', () => console.log('WebSocket connected'));
+wsClient.on('exception', (err) => console.error('WS error:', err));
+
+// Subscribe to BTCUSDT spot ticker
+wsClient.subscribeTopic('SPOT', 'ticker', 'BTCUSDT');
+```
+
+```typescript Candle Stream
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2();
+
+wsClient.on('update', (data) => {
+  // Each update contains the latest candle OHLCV array
+  console.log('Candle update:', JSON.stringify(data, null, 2));
+});
+
+// 1-minute candles for BTC/USDT perpetual
+wsClient.subscribeTopic('USDT-FUTURES', 'candle1m', 'BTCUSDT');
+
+// 1-hour UTC-aligned candles for ETH/USDT spot
+wsClient.subscribeTopic('SPOT', 'candle1H', 'ETHUSDT');
+```
+
+```typescript Order Book Depth
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2();
+
+wsClient.on('update', (data) => {
+  console.log('Book update:', data);
+});
+
+// Top 15 levels of the BTCUSDT USDT-futures order book
+wsClient.subscribeTopic('USDT-FUTURES', 'books15', 'BTCUSDT');
+
+// Top-of-book (best bid/ask) for spot
+wsClient.subscribeTopic('SPOT', 'books1', 'BTCUSDT');
+```
+
+```typescript Private Account and Orders
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+wsClient.on('update', (data) => {
+  console.log('Private event:', JSON.stringify(data, null, 2));
+});
+
+wsClient.on('authenticated', () => {
+  console.log('Private channel authenticated');
+});
+
+// Account balance changes (all symbols)
+wsClient.subscribeTopic('SPOT', 'account');
+
+// Order updates for a specific symbol
+wsClient.subscribeTopic('SPOT', 'orders', 'BTCUSDT');
+```
+
+```typescript Futures Positions
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+wsClient.on('update', (data) => {
+  console.log('Position update:', data);
+});
+
+// All USDT-futures positions (use 'default' or omit coin)
+wsClient.subscribeTopic('USDT-FUTURES', 'positions', 'default');
+
+// All USDT-futures orders
+wsClient.subscribeTopic('USDT-FUTURES', 'orders', 'default');
+
+// Algo orders (TP/SL, trigger orders)
+wsClient.subscribeTopic('USDT-FUTURES', 'orders-algo', 'default');
+```
+</CodeGroup>
+
+---
+
+## Event listener reference
+
+```typescript
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({ /* credentials */ });
+
+// Market data / account updates
+wsClient.on('update', (data) => { /* handle streaming data */ });
+
+// Connection lifecycle
+wsClient.on('open', (data) => console.log('Connected:', data.wsKey));
+wsClient.on('response', (data) => console.log('Subscribe response:', data));
+wsClient.on('reconnect', (data) => console.log('Reconnecting...', data.wsKey));
+wsClient.on('reconnected', (data) => console.log('Reconnected:', data.wsKey));
+
+// Authentication (private connections only)
+wsClient.on('authenticated', (data) => console.log('Authenticated:', data.wsKey));
+
+// Errors
+wsClient.on('exception', (data) => console.error('WS exception:', data));
+```
+
+<Note>
+  Bitget's V3/UTA API offers additional unified account topics and cross-margin support in a single wallet. If you are starting a new integration, consider using `WebsocketClientV3` for the latest features. The V2 topics documented here remain fully supported on the classic API.
+</Note>

@@ -1,0 +1,231 @@
+---
+title: "V2 Earn, Savings, Copy Trading, and Sub-Accounts"
+sidebarTitle: "Earn & More"
+description: "RestClientV2 methods for savings products, Sharkfin investments, crypto loans, copy trading management, and sub-account operations in V2."
+---
+
+The `RestClientV2` class bundles several non-trading capabilities alongside its core market methods. This page covers the earn suite (flexible savings, Sharkfin structured products, and crypto loans), copy trading APIs for both spot and futures, and the sub-account management endpoints for creating, configuring, and querying child accounts. All endpoints in this section require authentication.
+
+---
+
+## Savings
+
+Flexible savings products allow you to earn yield on idle spot balances. Subscriptions and redemptions are near-instant for flexible-term products.
+
+| Method | Description |
+|---|---|
+| `getEarnSavingsProducts(params?)` | Lists available savings products; optionally filter by `coin` |
+| `getEarnSavingsAccount()` | Returns the savings account overview and total accrued interest |
+| `getEarnSavingsAssets(params)` | Lists savings holdings filtered by `periodType` |
+| `getEarnSavingsRecords(params)` | Paginated history of subscribe/redeem events |
+| `getEarnSavingsSubscription(params)` | Details of a specific savings subscription by `orderId` |
+| `earnSubscribeSavings(params)` | Subscribes to a savings product |
+| `earnRedeemSavings(params)` | Redeems a savings position |
+
+### RedeemSavingsRequestV2 parameters
+
+<ParamField body="productId" type="string" required>
+  The savings product identifier.
+</ParamField>
+
+<ParamField body="periodType" type="string" required>
+  Period type matching the subscription, e.g. `'flexible'`.
+</ParamField>
+
+<ParamField body="amount" type="string" required>
+  Amount to redeem expressed as a string.
+</ParamField>
+
+<ParamField body="orderId" type="string">
+  Optional subscription order ID for fixed-term redemptions.
+</ParamField>
+
+---
+
+## Sharkfin
+
+Sharkfin is a principal-protected structured product that provides variable yield based on whether a price range condition is met at expiry.
+
+| Method | Description |
+|---|---|
+| `getSharkfinProducts(params)` | Lists active Sharkfin products; filter by `status` |
+| `subscribeSharkfin(params)` | Subscribes to a Sharkfin product by `productId` and `amount` |
+| `getSharkfinAssets(params)` | Lists Sharkfin holdings filtered by `status` |
+| `getSharkfinRecords(params)` | Paginated history of Sharkfin transactions |
+| `getSharkfinSubscription(params)` | Details of a specific Sharkfin subscription |
+
+---
+
+## Crypto Loans
+
+The loans endpoints let you borrow crypto against pledged collateral with fixed or floating daily interest rates.
+
+| Method | Description |
+|---|---|
+| `getLoanCurrencies(params?)` | Lists loanable and pledgeable currencies |
+| `getLoanDebts()` | Returns all active loan positions |
+| `getLoanEstInterestAndBorrowable(params)` | Estimates interest and maximum borrowable given pledge details |
+| `getLoanHistory(params?)` | Paginated loan history |
+| `getLoanLiquidationRecords(params?)` | Paginated loan liquidation records |
+
+### GetLoanEstInterestAndBorrowableRequestV2 parameters
+
+<ParamField body="loanCoin" type="string" required>
+  The currency you want to borrow, e.g. `"USDT"`.
+</ParamField>
+
+<ParamField body="pledgeCoin" type="string" required>
+  The currency used as collateral, e.g. `"BTC"`.
+</ParamField>
+
+<ParamField body="daily" type="'SEVEN' | 'THIRTY'" required>
+  Interest period: 7-day or 30-day rolling rate.
+</ParamField>
+
+<ParamField body="pledgeAmount" type="string">
+  Amount of `pledgeCoin` to deposit as collateral. Used to estimate max borrowable.
+</ParamField>
+
+---
+
+## Copy Trading — Spot
+
+These endpoints are for traders operating as copy-trading signal providers on the spot market.
+
+| Method | Description |
+|---|---|
+| `getSpotTraderCurrentOrders(params?)` | Lists the trader's currently active copy-trade orders |
+| `getSpotTraderHistoryOrders(params)` | Paginated history of the trader's copy-trade orders |
+| `getSpotTraderFollowers(params?)` | Lists accounts currently following this trader |
+| `getSpotFollowerCurrentTraderSymbols(params)` | Lists symbols being traded by a trader that the follower is copying |
+
+---
+
+## Copy Trading — Futures
+
+These endpoints are for traders providing futures copy-trading signals.
+
+| Method | Description |
+|---|---|
+| `getFuturesTraderCurrentOrder(params)` | Returns the trader's current open futures copy-trade order |
+| `getFuturesTraderHistoryOrders(params)` | Paginated futures copy-trade order history |
+| `getFuturesTraderFollowers(params)` | Lists accounts following this futures trader |
+
+---
+
+## Sub-Accounts
+
+Sub-accounts allow institutions and power users to segregate funds and API access across multiple child accounts under a single master account.
+
+| Method | Description |
+|---|---|
+| `createSubaccount(params)` | Creates a new sub-account with a given username |
+| `getSubaccounts(params?)` | Lists all sub-accounts under the master account |
+| `modifySubaccount(params)` | Updates sub-account settings (e.g. permissions, status) |
+| `createSubaccountApiKey(params)` | Creates an API key scoped to a specific sub-account |
+| `getSubaccountApiKey(params)` | Retrieves API key details for a sub-account |
+| `modifySubaccountApiKey(params)` | Updates permissions or IP restrictions on a sub-account API key |
+| `getSubaccountSpotAssets(params)` | Returns spot asset balances for a sub-account |
+| `getSubaccountFuturesAssets(params)` | Returns futures asset balances for a sub-account |
+
+---
+
+## Code examples
+
+<CodeGroup>
+```typescript Subscribe to Savings
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// List available savings products
+const products = await client.getEarnSavingsProducts();
+console.log('Savings products:', products.data);
+
+// Subscribe to a flexible savings product
+const subscribeResult = await client.earnSubscribeSavings({
+  productId: products.data[0].productId,
+  periodType: 'flexible',
+  amount: '100',
+  coin: 'USDT',
+});
+console.log('Subscribe result:', subscribeResult.data);
+```
+
+```typescript Redeem Savings
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// View current savings assets
+const assets = await client.getEarnSavingsAssets({
+  periodType: 'flexible',
+});
+console.log('Savings assets:', assets.data);
+
+// Redeem a savings position
+const redeemResult = await client.earnRedeemSavings({
+  productId: 'your-product-id',
+  periodType: 'flexible',
+  amount: '50',
+});
+console.log('Redeem result:', redeemResult.data);
+```
+
+```typescript Estimate Loan Terms
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// Estimate how much USDT you can borrow by pledging 0.1 BTC
+const estimate = await client.getLoanEstInterestAndBorrowable({
+  loanCoin: 'USDT',
+  pledgeCoin: 'BTC',
+  daily: 'SEVEN',
+  pledgeAmount: '0.1',
+});
+console.log('Loan estimate:', estimate.data);
+```
+
+```typescript Create a Sub-Account
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+// Create a new sub-account
+const newSub = await client.createSubaccount({
+  subAccountName: 'trading-bot-1',
+});
+console.log('Created sub-account:', newSub.data);
+
+// Create an API key for it
+const apiKey = await client.createSubaccountApiKey({
+  subAccountName: 'trading-bot-1',
+  passphrase: 'SecurePass!123',
+  remark: 'Bot trading key',
+  ipList: ['203.0.113.42'],
+  perm: 'trade',
+});
+console.log('Sub-account API key:', apiKey.data);
+```
+</CodeGroup>
+
+<Note>
+  Sharkfin products have fixed subscription windows. Call `getSharkfinProducts` with `{ status: 'in_progress' }` to list currently open subscription periods.
+</Note>

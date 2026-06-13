@@ -1,0 +1,206 @@
+---
+title: "Authenticate with Bitget API: Keys and Signing"
+sidebarTitle: "Authentication"
+description: "Configure API key authentication for bitget-api using HMAC or RSA signing, including how to pass credentials and use a custom sign function."
+---
+
+Bitget's API uses a three-part credential system: an **API Key**, an **API Secret**, and an **API Passphrase**. Every authenticated REST request and every private WebSocket connection must carry a signature derived from these three values. The `bitget-api` SDK handles the signing automatically — you only need to supply the credentials when constructing a client. Both HMAC-SHA256 and RSA-SHA256 signing are supported, and the SDK detects which method to use based on the format of your `apiSecret`.
+
+<Warning>
+  Never hardcode your API key, secret, or passphrase directly in source code. Use environment variables or a secrets manager. Committing credentials to version control is a common cause of account compromise.
+</Warning>
+
+## Creating API Credentials
+
+<Steps>
+
+### Open API Management on Bitget
+
+Visit [How to create an API key](https://www.bitget.com/en/support/articles/360011132814-How-to-create-API) and log in to your Bitget account. Navigate to **Profile → API Management** and click **Create API**.
+
+### Choose a signing method
+
+Bitget supports two signing methods:
+
+- **HMAC** (default) — Bitget generates a secret string for you. This is the simplest option and sufficient for most use cases.
+- **RSA (self-generated)** — You generate an RSA key pair locally, provide Bitget with your public key, and keep the private key yourself. This is the more secure option because your secret never leaves your machine.
+
+### Save your credentials
+
+After creating the key, record all three values:
+
+| Value | Description |
+|---|---|
+| **API Key** | Public identifier — safe to log, not safe to share openly |
+| **API Secret** | HMAC secret string, or your RSA private key — never share or commit this |
+| **API Passphrase** | Chosen by you at creation time — this is **not** your account login password |
+
+Store them as environment variables:
+
+```bash
+export API_KEY_COM="your_api_key"
+export API_SECRET_COM="your_api_secret_or_rsa_private_key"
+export API_PASS_COM="your_api_passphrase"
+```
+
+</Steps>
+
+## Constructor Options
+
+Pass credentials and configuration to any client constructor via the `RestClientOptions` interface. The same options object is accepted by `RestClientV3`, `RestClientV2`, `WebsocketClientV3`, and `WebsocketClientV2`.
+
+<ParamField path="apiKey" type="string">
+  Your Bitget API key. Optional for public endpoints; required for any authenticated REST call or private WebSocket subscription.
+</ParamField>
+
+<ParamField path="apiSecret" type="string">
+  Your API secret. For HMAC, this is the secret string provided by Bitget. For RSA, pass your full PEM-encoded private key, including the `-----BEGIN PRIVATE KEY-----` header — the SDK detects RSA automatically from this header.
+</ParamField>
+
+<ParamField path="apiPass" type="string">
+  The passphrase you chose when creating the API key. Optional for public endpoints; required for authenticated calls.
+</ParamField>
+
+<ParamField path="demoTrading" type="boolean" default="false">
+  Set to `true` to route all requests to Bitget's paper trading (demo) environment. No other code changes are required — the SDK switches base URLs and WebSocket endpoints automatically.
+</ParamField>
+
+<ParamField path="customSignMessageFn" type="(message: string, secret: string) => Promise<string>">
+  An optional function that overrides the default signing implementation. Useful for latency-sensitive applications that want to use Node's native `createHmac` instead of the Web Crypto API. See the [Custom Sign Function](#custom-sign-function) section below.
+</ParamField>
+
+<ParamField path="baseUrl" type="string">
+  Override the REST API base URL. Defaults to `https://api.bitget.com`. Useful when routing through a proxy or a custom gateway.
+</ParamField>
+
+## HMAC Authentication
+
+HMAC is the default signing method. Pass your credentials to the constructor and the SDK signs every request automatically:
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY_COM,
+  apiSecret: process.env.API_SECRET_COM,
+  apiPass: process.env.API_PASS_COM,
+});
+
+(async () => {
+  try {
+    const balances = await client.getBalances();
+    console.log('Balances:', JSON.stringify(balances, null, 2));
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+## RSA Authentication
+
+RSA authentication is supported for both V2 and V3 clients. To use it, generate an RSA key pair locally, register the **public key** with Bitget when creating the API key, and pass the **private key** as `apiSecret`. The SDK detects RSA automatically when the secret contains the `PRIVATE KEY` marker.
+
+**Generate RSA keys with OpenSSL:**
+
+```bash
+# Generate a 4096-bit private key
+openssl genrsa -out rsa-private-key.pem 4096
+
+# Derive the corresponding public key
+openssl rsa -in rsa-private-key.pem -pubout -out rsa-public-key.pem
+```
+
+Upload the contents of `rsa-public-key.pem` to Bitget when creating a "self-generated" API key. Bitget will issue you an API key string to use as `apiKey`. Your private key (`rsa-private-key.pem`) never leaves your machine.
+
+**Use the RSA private key with the SDK:**
+
+```typescript
+import { readFileSync } from 'fs';
+import { RestClientV3 } from 'bitget-api';
+
+// Read the private key from a file — never embed PEM content directly in source
+const rsaPrivateKey = readFileSync('./rsa-private-key.pem', 'utf-8');
+
+const client = new RestClientV3({
+  // API key string issued by Bitget after registering your public key
+  apiKey: 'bg_0866563123123123123f567e83e52fd',
+  // Pass the full PEM private key — the "BEGIN PRIVATE KEY" header triggers RSA mode
+  apiSecret: rsaPrivateKey,
+  apiPass: process.env.API_PASS_COM,
+});
+
+(async () => {
+  try {
+    const balances = await client.getBalances();
+    console.log('V3 balances:', JSON.stringify(balances, null, 2));
+  } catch (e) {
+    console.error('Request failed:', e);
+  }
+})();
+```
+
+<Note>
+  The SDK uses `RSA-SHA256` for RSA signing. Detection is automatic — if `apiSecret` contains the string `"PRIVATE KEY"` (as all standard PEM headers do), RSA mode is activated. No additional configuration is needed.
+</Note>
+
+## Custom Sign Function
+
+Starting from SDK v3.0.0, the default signing implementation uses the **Web Crypto API**, which works in both Node.js and browser environments. However, for latency-sensitive applications, Node's native `createHmac` is measurably faster.
+
+You can inject your own signing function via `customSignMessageFn`. The function receives the pre-built message string and the secret, and must return a `Promise<string>` containing the hex-encoded signature:
+
+```typescript
+import { createHmac } from 'crypto';
+import { RestClientV3, WebsocketClientV3 } from 'bitget-api';
+
+const customSignMessageFn = async (message: string, secret: string): Promise<string> => {
+  return createHmac('sha256', secret).update(message).digest('hex');
+};
+
+// Inject into the REST client
+const restClient = new RestClientV3({
+  apiKey: process.env.API_KEY_COM,
+  apiSecret: process.env.API_SECRET_COM,
+  apiPass: process.env.API_PASS_COM,
+  customSignMessageFn,
+});
+
+// Inject into the WebSocket client
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.API_KEY_COM,
+  apiSecret: process.env.API_SECRET_COM,
+  apiPass: process.env.API_PASS_COM,
+  customSignMessageFn,
+});
+```
+
+The `customSignMessageFn` is called on **every authenticated REST request** and once **each time a private WebSocket connection is opened**, so even small per-call savings compound at high request rates.
+
+## Demo Trading
+
+Bitget's demo (paper) trading environment mirrors the live API but operates with simulated funds. Enable it with a single flag:
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.API_KEY_COM,
+  apiSecret: process.env.API_SECRET_COM,
+  apiPass: process.env.API_PASS_COM,
+  demoTrading: true, // Routes all requests to demo environment
+});
+```
+
+<Note>
+  You must create a separate set of API keys in the [Demo Trading environment](https://www.bitget.com/en/demo-trading). Live API keys do not work against the demo endpoints, and vice versa.
+</Note>
+
+## Debugging HTTP Requests
+
+If you need to inspect the raw HTTP requests being sent to Bitget (for example when troubleshooting signature errors), set the `BITGETTRACE` environment variable to `true` before starting your application:
+
+```bash
+BITGETTRACE=true node your-script.js
+```
+
+This causes the SDK to log detailed information about every outgoing request and the corresponding API response, including headers and the signed payload.

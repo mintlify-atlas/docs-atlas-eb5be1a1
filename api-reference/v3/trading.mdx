@@ -1,0 +1,441 @@
+---
+title: "V3 Trading API: Orders, Positions, and Strategies"
+sidebarTitle: "Trading"
+description: "RestClientV3 private trading methods for placing, modifying, and cancelling spot and futures orders, managing positions, and strategy orders on Bitget V3/UTA."
+---
+
+The `RestClientV3` trading methods provide complete order lifecycle management for the Bitget V3/UTA interface. A single unified order placement endpoint handles spot, margin, and all futures categories (`USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`) — you select the target market via the `category` field. All trading methods require API key authentication with trading permissions.
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.BITGET_API_KEY!,
+  apiSecret: process.env.BITGET_API_SECRET!,
+  apiPass: process.env.BITGET_API_PASS!,
+});
+```
+
+---
+
+## submitNewOrder(params)
+
+Places a new order for spot, margin, or futures markets. The `PlaceOrderRequestV3` type covers all supported order variations through a single schema.
+
+**Endpoint:** `POST /api/v3/trade/place-order`
+
+### PlaceOrderRequestV3 Parameters
+
+<ParamField body="category" type="string" required>
+  Market category: `SPOT`, `MARGIN`, `USDT-FUTURES`, `COIN-FUTURES`, or `USDC-FUTURES`.
+</ParamField>
+
+<ParamField body="symbol" type="string" required>
+  Trading pair symbol, e.g. `BTCUSDT`.
+</ParamField>
+
+<ParamField body="side" type="string" required>
+  Order direction: `buy` or `sell`.
+</ParamField>
+
+<ParamField body="orderType" type="string" required>
+  Order type: `limit` or `market`.
+</ParamField>
+
+<ParamField body="qty" type="string" required>
+  Order quantity as a decimal string, e.g. `"0.01"`.
+</ParamField>
+
+<ParamField body="price" type="string">
+  Limit price as a decimal string. Required when `orderType` is `limit`.
+</ParamField>
+
+<ParamField body="timeInForce" type="string">
+  Time-in-force policy: `gtc` (default), `ioc`, `fok`, or `post_only`.
+</ParamField>
+
+<ParamField body="posSide" type="string">
+  Position side for hedge mode: `long` or `short`. Required in hedge mode.
+</ParamField>
+
+<ParamField body="marginMode" type="string">
+  Futures only. Margin mode: `crossed` (default) or `isolated`.
+</ParamField>
+
+<ParamField body="reduceOnly" type="string">
+  Whether this is a reduce-only order: `yes` or `no`.
+</ParamField>
+
+<ParamField body="clientOid" type="string">
+  Client-assigned order ID for idempotency and tracking.
+</ParamField>
+
+<ParamField body="stpMode" type="string">
+  Self-trade prevention: `none`, `cancel_taker`, `cancel_maker`, or `cancel_both`.
+</ParamField>
+
+<ParamField body="takeProfitPrice" type="string">
+  Attach a take-profit trigger price at order placement.
+</ParamField>
+
+<ParamField body="stopLossPrice" type="string">
+  Attach a stop-loss trigger price at order placement.
+</ParamField>
+
+<ParamField body="takeProfitTriggerType" type="string">
+  Trigger type for TP: `mark_price` or `last_price`.
+</ParamField>
+
+<ParamField body="stopLossTriggerType" type="string">
+  Trigger type for SL: `mark_price` or `last_price`.
+</ParamField>
+
+<Note>
+  **`timeInForce` options:**
+  - `gtc` — Good Till Cancelled (default): order remains active until filled or manually cancelled.
+  - `ioc` — Immediate or Cancel: fills whatever quantity is available immediately, cancels the rest.
+  - `fok` — Fill or Kill: must fill the entire quantity immediately or the whole order is cancelled.
+  - `post_only` — Maker only: order is rejected if it would immediately match as a taker.
+</Note>
+
+### Spot Limit Order Example
+
+```typescript
+const spotOrder = await client.submitNewOrder({
+  category: 'SPOT',
+  symbol: 'BTCUSDT',
+  side: 'buy',
+  orderType: 'limit',
+  qty: '0.001',
+  price: '60000',
+  timeInForce: 'gtc',
+  clientOid: `spot-${Date.now()}`,
+});
+console.log('Order ID:', spotOrder.data.orderId);
+```
+
+### Futures Market Order Example
+
+```typescript
+const futuresOrder = await client.submitNewOrder({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+  side: 'buy',
+  orderType: 'market',
+  qty: '0.01',
+  posSide: 'long',         // required in hedge mode
+  marginMode: 'crossed',
+  clientOid: `futures-${Date.now()}`,
+});
+console.log('Futures Order ID:', futuresOrder.data.orderId);
+```
+
+### Futures Limit Order with TP/SL
+
+```typescript
+const tpslOrder = await client.submitNewOrder({
+  category: 'USDT-FUTURES',
+  symbol: 'ETHUSDT',
+  side: 'buy',
+  orderType: 'limit',
+  qty: '0.1',
+  price: '3000',
+  timeInForce: 'gtc',
+  posSide: 'long',
+  marginMode: 'crossed',
+  takeProfitPrice: '3300',
+  stopLossPrice: '2800',
+  takeProfitTriggerType: 'mark_price',
+  stopLossTriggerType: 'mark_price',
+});
+```
+
+---
+
+## cancelOrder(params)
+
+Cancels a single active order identified by `orderId` or `clientOid`.
+
+**Endpoint:** `POST /api/v3/trade/cancel-order`
+
+<ParamField body="orderId" type="string">
+  Bitget-assigned order ID. Provide either `orderId` or `clientOid`.
+</ParamField>
+
+<ParamField body="clientOid" type="string">
+  Client-assigned order ID. Provide either `orderId` or `clientOid`.
+</ParamField>
+
+```typescript
+await client.cancelOrder({ orderId: '1234567890' });
+
+// or by client order ID
+await client.cancelOrder({ clientOid: 'my-order-001' });
+```
+
+---
+
+## cancelAllOrders(params)
+
+Cancels all open orders for a given category, optionally scoped to a single symbol.
+
+**Endpoint:** `POST /api/v3/trade/cancel-symbol-order`
+
+<ParamField body="category" type="string" required>
+  One of `SPOT`, `MARGIN`, `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField body="symbol" type="string">
+  Optional symbol filter. Cancels all open orders in the category if omitted.
+</ParamField>
+
+```typescript
+// Cancel all USDT-futures orders for BTCUSDT
+await client.cancelAllOrders({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+});
+
+// Cancel ALL spot orders
+await client.cancelAllOrders({ category: 'SPOT' });
+```
+
+---
+
+## batchModifyOrders(params)
+
+Modifies multiple open orders in a single request. Each item in the array targets one order by `orderId` or `clientOid`.
+
+**Endpoint:** `POST /api/v3/trade/batch-modify-order`
+
+<ParamField body="orderId" type="string">
+  Bitget order ID to modify.
+</ParamField>
+
+<ParamField body="clientOid" type="string">
+  Client order ID to modify.
+</ParamField>
+
+<ParamField body="qty" type="string">
+  New quantity for the order.
+</ParamField>
+
+<ParamField body="price" type="string">
+  New limit price for the order.
+</ParamField>
+
+<ParamField body="autoCancel" type="string">
+  Whether to auto-cancel the order: `yes` or `no`.
+</ParamField>
+
+```typescript
+const results = await client.batchModifyOrders([
+  { orderId: '111', price: '61000', qty: '0.002' },
+  { clientOid: 'my-order-002', price: '3100' },
+]);
+```
+
+---
+
+## cancelBatchOrders(params)
+
+Cancels multiple orders in a single request. Each entry requires `category` and `symbol` plus either `orderId` or `clientOid`.
+
+**Endpoint:** `POST /api/v3/trade/cancel-batch`
+
+<ParamField body="category" type="string" required>
+  Market category for the order being cancelled.
+</ParamField>
+
+<ParamField body="symbol" type="string" required>
+  Trading symbol for the orders.
+</ParamField>
+
+<ParamField body="orderId" type="string">
+  Bitget order ID.
+</ParamField>
+
+<ParamField body="clientOid" type="string">
+  Client order ID.
+</ParamField>
+
+```typescript
+const cancelResults = await client.cancelBatchOrders([
+  { category: 'USDT-FUTURES', symbol: 'BTCUSDT', orderId: '111' },
+  { category: 'USDT-FUTURES', symbol: 'BTCUSDT', orderId: '222' },
+]);
+```
+
+---
+
+## countdownCancelAll(params)
+
+Sets or refreshes a **dead man's switch** that automatically cancels all open orders if the countdown expires without being reset. Set `countdown` to `"0"` to disable an active countdown.
+
+**Endpoint:** `POST /api/v3/trade/countdown-cancel-all`
+
+<ParamField body="countdown" type="string" required>
+  Seconds until auto-cancel. Acceptable values: `5`–`60`, or `0` to disable.
+</ParamField>
+
+```typescript
+// Arm: cancel all orders if not refreshed within 30 seconds
+await client.countdownCancelAll({ countdown: '30' });
+
+// Keep alive — call this within 30 s to reset the timer
+setInterval(async () => {
+  await client.countdownCancelAll({ countdown: '30' });
+}, 20_000);
+
+// Disarm
+await client.countdownCancelAll({ countdown: '0' });
+```
+
+---
+
+## closeAllPositions(params)
+
+Closes all open futures positions for a category, optionally filtered by symbol or position side.
+
+**Endpoint:** `POST /api/v3/trade/close-positions`
+
+<ParamField body="category" type="string" required>
+  One of `USDT-FUTURES`, `COIN-FUTURES`, `USDC-FUTURES`.
+</ParamField>
+
+<ParamField body="symbol" type="string">
+  Optional symbol to close. Omit to close all positions in the category.
+</ParamField>
+
+<ParamField body="posSide" type="string">
+  Optional position side to close: `long` or `short`.
+</ParamField>
+
+```typescript
+// Close all long BTCUSDT positions
+const result = await client.closeAllPositions({
+  category: 'USDT-FUTURES',
+  symbol: 'BTCUSDT',
+  posSide: 'long',
+});
+```
+
+---
+
+## cancelStrategyOrder(params)
+
+Cancels an active strategy (plan / TP-SL) order identified by `orderId` or `clientOid`.
+
+**Endpoint:** `POST /api/v3/trade/cancel-strategy-order`
+
+<ParamField body="orderId" type="string">
+  Strategy order ID assigned by Bitget.
+</ParamField>
+
+<ParamField body="clientOid" type="string">
+  Client-assigned strategy order ID.
+</ParamField>
+
+```typescript
+await client.cancelStrategyOrder({ orderId: 'strategy-order-id' });
+```
+
+---
+
+## Copy Trading Methods
+
+These methods are for **lead traders** in Bitget's copy-trading system. They require Futures Copy-Trading permissions on your API key.
+
+### getCopyFuturesTradingPairs()
+
+Returns the futures pairs that are eligible for copy trading on your lead account.
+
+```typescript
+const pairs = await client.getCopyFuturesTradingPairs();
+console.log('Copy trading pairs:', pairs.data);
+```
+
+### getCopyFuturesMaxTransferable(params)
+
+Returns the maximum transferable balance and available balance for the copy-trading lead account.
+
+<ParamField query="coin" type="string" required>
+  Coin to query, e.g. `USDT`.
+</ParamField>
+
+```typescript
+const maxTransferable = await client.getCopyFuturesMaxTransferable({
+  coin: 'USDT',
+});
+```
+
+### copyFuturesTransfer(params)
+
+Transfers funds between spot/funding and the copy-trading lead account.
+
+<ParamField body="coin" type="string" required>
+  Coin to transfer.
+</ParamField>
+
+<ParamField body="amount" type="string" required>
+  Transfer amount.
+</ParamField>
+
+<ParamField body="transferType" type="string" required>
+  Direction of the transfer — `in` (to lead account) or `out` (from lead account).
+</ParamField>
+
+```typescript
+await client.copyFuturesTransfer({
+  coin: 'USDT',
+  amount: '500',
+  transferType: 'in',
+});
+```
+
+---
+
+## Full Trading Workflow Example
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.BITGET_API_KEY!,
+  apiSecret: process.env.BITGET_API_SECRET!,
+  apiPass: process.env.BITGET_API_PASS!,
+});
+
+async function tradingWorkflow() {
+  // 1. Place a limit buy order on USDT-futures
+  const order = await client.submitNewOrder({
+    category: 'USDT-FUTURES',
+    symbol: 'BTCUSDT',
+    side: 'buy',
+    orderType: 'limit',
+    qty: '0.01',
+    price: '60000',
+    timeInForce: 'gtc',
+    posSide: 'long',
+    marginMode: 'crossed',
+    takeProfitPrice: '65000',
+    stopLossPrice: '58000',
+    clientOid: `trade-${Date.now()}`,
+  });
+  console.log('Order placed:', order.data.orderId);
+
+  // 2. Monitor the order
+  const orderInfo = await client.getOrderInfo({
+    orderId: order.data.orderId,
+  });
+  console.log('Order status:', orderInfo.data.status);
+
+  // 3. Cancel the order if still open
+  if (orderInfo.data.status === 'live') {
+    await client.cancelOrder({ orderId: order.data.orderId });
+    console.log('Order cancelled');
+  }
+}
+
+tradingWorkflow().catch(console.error);
+```

@@ -1,0 +1,583 @@
+---
+title: "V3 Earn, Loan, and P2P API Methods"
+sidebarTitle: "Earn & Loans"
+description: "RestClientV3 methods for Bitget Elite Earn products, crypto loans, P2P trading, and broker sub-account management in the V3/UTA API."
+---
+
+The `RestClientV3` exposes earn, crypto loan, P2P marketplace, and broker management capabilities alongside the core trading API. Earn Elite lets you subscribe to on-chain yield products directly from your unified account. Crypto Loans allow you to borrow assets against collateral with flexible or fixed durations. The P2P module enables you to create and manage peer-to-peer trading advertisements. Broker endpoints are restricted to ND Broker master accounts only. All endpoints on this page require authentication.
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.BITGET_API_KEY!,
+  apiSecret: process.env.BITGET_API_SECRET!,
+  apiPass: process.env.BITGET_API_PASS!,
+});
+```
+
+---
+
+## Earn (Elite On-Chain Products)
+
+### getEarnEliteProducts()
+
+Returns the list of currently available Elite Earn products, including product IDs, yield rates, lock durations, and minimum subscription amounts.
+
+**Endpoint:** `GET /api/v3/earn/elite-product`
+
+```typescript
+const products = await client.getEarnEliteProducts();
+products.data.forEach((p) =>
+  console.log(p.productId, p.annualRate, p.minSubscribeAmount),
+);
+```
+
+---
+
+### subscribeEarnElite(params)
+
+Subscribes to an Elite Earn product. Returns a subscription result with a tracking order ID.
+
+**Endpoint:** `POST /api/v3/earn/elite-subscribe`
+
+<ParamField body="productSubId" type="string" required>
+  The specific sub-product ID to subscribe to (obtained from `getEarnEliteProducts()`).
+</ParamField>
+
+<ParamField body="amount" type="string" required>
+  Subscription amount as a decimal string.
+</ParamField>
+
+<ParamField body="coin" type="string">
+  Coin to subscribe with, if required by the product.
+</ParamField>
+
+<ParamField body="paymentAccount" type="string">
+  Source account for the subscription funds: `spot` or `unified`.
+</ParamField>
+
+```typescript
+const result = await client.subscribeEarnElite({
+  productSubId: 'some-product-sub-id',
+  amount: '100',
+  coin: 'USDT',
+  paymentAccount: 'unified',
+});
+console.log('Subscribe order ID:', result.data.orderId);
+```
+
+---
+
+### getEarnEliteSubscribeInfo(params)
+
+Returns detailed information about a specific Earn product's subscription settings, constraints, and current rates.
+
+**Endpoint:** `GET /api/v3/earn/elite-subscribe-info`
+
+<ParamField query="productId" type="string" required>
+  The product ID to query.
+</ParamField>
+
+```typescript
+const info = await client.getEarnEliteSubscribeInfo({
+  productId: 'some-product-id',
+});
+```
+
+---
+
+### redeemEarnElite(params)
+
+Initiates redemption of an active Earn Elite subscription.
+
+**Endpoint:** `POST /api/v3/earn/elite-redeem`
+
+<ParamField body="productId" type="string" required>
+  Product ID of the subscription to redeem.
+</ParamField>
+
+<ParamField body="productSubId" type="string" required>
+  The sub-product subscription ID.
+</ParamField>
+
+<ParamField body="redeemType" type="string" required>
+  Redemption speed: `fast` (immediate, may incur penalty) or `standard` (normal settlement period).
+</ParamField>
+
+<ParamField body="amount" type="string" required>
+  Amount to redeem.
+</ParamField>
+
+<ParamField body="receiveAccount" type="string" required>
+  Account to receive redeemed funds: `spot` or `unified`.
+</ParamField>
+
+<ParamField body="advancedSettle" type="string">
+  Whether to use advanced settlement: `yes` or `no`.
+</ParamField>
+
+<ParamField body="coin" type="string">
+  Coin for redemption, if required.
+</ParamField>
+
+```typescript
+const redeem = await client.redeemEarnElite({
+  productId: 'some-product-id',
+  productSubId: 'some-product-sub-id',
+  redeemType: 'standard',
+  amount: '100',
+  receiveAccount: 'unified',
+});
+```
+
+---
+
+### getEarnEliteRecords(params)
+
+Returns a paginated history of Earn Elite events: subscriptions, redemptions, and interest credits.
+
+**Endpoint:** `GET /api/v3/earn/elite-records`
+
+<ParamField query="type" type="string" required>
+  Record type to query: `subscribe`, `redeem`, or `interest`.
+</ParamField>
+
+<ParamField query="startTime" type="string">
+  Start of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="endTime" type="string">
+  End of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="limit" type="string">
+  Max records per page.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Pagination cursor.
+</ParamField>
+
+```typescript
+const earnHistory = await client.getEarnEliteRecords({
+  type: 'interest',
+  startTime: '1700000000000',
+  endTime: '1710000000000',
+  limit: '50',
+});
+```
+
+---
+
+### getEarnEliteRedeemInfo(params)
+
+Returns information about the redemption terms for a given product — settlement periods, applicable fees, and estimated payout.
+
+**Endpoint:** `GET /api/v3/earn/elite-redeem-info`
+
+<ParamField query="productId" type="string" required>
+  Product ID to query redemption terms for.
+</ParamField>
+
+```typescript
+const redeemInfo = await client.getEarnEliteRedeemInfo({
+  productId: 'some-product-id',
+});
+```
+
+---
+
+## Crypto Loans
+
+The crypto loan API (`/api/v3/loan/*`) allows you to borrow assets by pledging collateral at flexible, 7-day, or 30-day terms.
+
+### getLoanCoins(params)
+
+Returns the list of supported borrowable coins and their available collateral pairs, LTV ratios, and interest rates.
+
+**Endpoint:** `GET /api/v3/loan/coins`
+
+<ParamField query="coin" type="string">
+  Optional coin filter to retrieve information for a specific borrowable asset.
+</ParamField>
+
+```typescript
+const loanCoins = await client.getLoanCoins();
+console.log('Borrowable coins:', loanCoins.data);
+```
+
+---
+
+### loanBorrow(params)
+
+Initiates a new crypto loan by specifying the borrow coin, pledge coin, duration, and either a pledge amount or loan amount.
+
+**Endpoint:** `POST /api/v3/loan/borrow`
+
+<ParamField body="loanCoin" type="string" required>
+  Coin to borrow, e.g. `USDT`.
+</ParamField>
+
+<ParamField body="pledgeCoin" type="string" required>
+  Collateral coin, e.g. `BTC`.
+</ParamField>
+
+<ParamField body="daily" type="string" required>
+  Loan duration: `SEVEN` (7-day), `THIRTY` (30-day), or `FLEXIBLE`.
+</ParamField>
+
+<ParamField body="pledgeAmount" type="string">
+  Amount of collateral to pledge. Provide either `pledgeAmount` or `loanAmount`.
+</ParamField>
+
+<ParamField body="loanAmount" type="string">
+  Amount to borrow. Provide either `pledgeAmount` or `loanAmount`.
+</ParamField>
+
+```typescript
+const borrow = await client.loanBorrow({
+  loanCoin: 'USDT',
+  pledgeCoin: 'BTC',
+  daily: 'FLEXIBLE',
+  loanAmount: '1000',
+});
+console.log('Loan order ID:', borrow.data.orderId);
+```
+
+---
+
+### getLoanBorrowOngoing(params)
+
+Returns your currently active loan orders, optionally filtered by order ID or coin.
+
+**Endpoint:** `GET /api/v3/loan/borrow-ongoing`
+
+<ParamField query="orderId" type="string">
+  Filter by specific loan order ID.
+</ParamField>
+
+<ParamField query="loanCoin" type="string">
+  Filter by borrowed coin.
+</ParamField>
+
+<ParamField query="pledgeCoin" type="string">
+  Filter by collateral coin.
+</ParamField>
+
+```typescript
+const activeLoans = await client.getLoanBorrowOngoing({ loanCoin: 'USDT' });
+activeLoans.data.forEach((loan) =>
+  console.log(loan.orderId, loan.loanAmount, loan.currentLTV),
+);
+```
+
+---
+
+### loanRepay(params)
+
+Repays an active loan, either partially or in full, using the borrowed coin or collateral.
+
+**Endpoint:** `POST /api/v3/loan/repay`
+
+<ParamField body="orderId" type="string" required>
+  Loan order ID to repay.
+</ParamField>
+
+<ParamField body="method" type="string" required>
+  Repayment method: `borrowed_coin` or `collateral`.
+</ParamField>
+
+<ParamField body="repayAll" type="string" required>
+  Whether to repay the full outstanding amount: `yes` or `no`.
+</ParamField>
+
+<ParamField body="amount" type="string">
+  Partial repayment amount. Required when `repayAll` is `no`.
+</ParamField>
+
+<ParamField body="repayUnlock" type="string">
+  Whether to unlock collateral after repayment: `yes` or `no`.
+</ParamField>
+
+```typescript
+// Full repayment
+await client.loanRepay({
+  orderId: 'loan-order-id',
+  method: 'borrowed_coin',
+  repayAll: 'yes',
+  repayUnlock: 'yes',
+});
+
+// Partial repayment
+await client.loanRepay({
+  orderId: 'loan-order-id',
+  method: 'borrowed_coin',
+  repayAll: 'no',
+  amount: '500',
+});
+```
+
+---
+
+### getLoanBorrowHistory(params)
+
+Returns a paginated history of all completed loan orders within a time range.
+
+**Endpoint:** `GET /api/v3/loan/borrow-history`
+
+<ParamField query="startTime" type="string" required>
+  Start of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="endTime" type="string" required>
+  End of the query window (Unix ms).
+</ParamField>
+
+<ParamField query="orderId" type="string">
+  Filter by a specific order ID.
+</ParamField>
+
+<ParamField query="loanCoin" type="string">
+  Filter by loan coin.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by termination status: `ROLLBACK`, `FORCE`, or `REPAY`.
+</ParamField>
+
+```typescript
+const loanHistory = await client.getLoanBorrowHistory({
+  startTime: '1700000000000',
+  endTime: '1710000000000',
+  loanCoin: 'USDT',
+});
+```
+
+---
+
+## P2P Trading
+
+The P2P module allows you to browse, create, and manage peer-to-peer trading advertisements directly through the API.
+
+### getP2pAdList(params) / getP2pAdList
+
+Browse public P2P advertisements. Filter by token, fiat currency, and trade side.
+
+**Endpoint:** `GET /api/v3/p2p/ad-list`
+
+<ParamField query="token" type="string" required>
+  Crypto token to trade, e.g. `USDT`.
+</ParamField>
+
+<ParamField query="fiat" type="string" required>
+  Fiat currency, e.g. `USD`, `EUR`.
+</ParamField>
+
+<ParamField query="side" type="string" required>
+  Trade direction: `buy` or `sell`.
+</ParamField>
+
+<ParamField query="pageNum" type="string" required>
+  Page number for pagination.
+</ParamField>
+
+<ParamField query="limit" type="string" required>
+  Number of results per page.
+</ParamField>
+
+```typescript
+const ads = await client.getP2pAdList({
+  token: 'USDT',
+  fiat: 'USD',
+  side: 'buy',
+  pageNum: '1',
+  limit: '20',
+});
+ads.data.forEach((ad) => console.log(ad.price, ad.quantity));
+```
+
+---
+
+### createP2pAd(params)
+
+Creates a new P2P advertisement to buy or sell crypto with your configured payment methods.
+
+**Endpoint:** `POST /api/v3/p2p/ad-create`
+
+<ParamField body="token" type="string" required>
+  Crypto token for the ad, e.g. `USDT`.
+</ParamField>
+
+<ParamField body="fiat" type="string" required>
+  Fiat currency for the ad, e.g. `USD`.
+</ParamField>
+
+<ParamField body="side" type="string" required>
+  `buy` or `sell`.
+</ParamField>
+
+<ParamField body="priceType" type="string" required>
+  `fixed` (set a fixed price) or `floating` (use market premium/discount).
+</ParamField>
+
+<ParamField body="price" type="string">
+  Fixed price. Required when `priceType` is `fixed`.
+</ParamField>
+
+<ParamField body="premium" type="string">
+  Premium/discount percentage. Required when `priceType` is `floating`.
+</ParamField>
+
+<ParamField body="minAmount" type="string" required>
+  Minimum fiat amount per trade.
+</ParamField>
+
+<ParamField body="maxAmount" type="string" required>
+  Maximum fiat amount per trade.
+</ParamField>
+
+<ParamField body="quantity" type="string" required>
+  Total crypto quantity to list in the ad.
+</ParamField>
+
+<ParamField body="payMethodIds" type="array" required>
+  Array of payment method references: `[{ payMethodId: string, userPayMethodId?: string }]`.
+</ParamField>
+
+<ParamField body="payTimeLimit" type="string" required>
+  Payment time limit in minutes.
+</ParamField>
+
+```typescript
+const newAd = await client.createP2pAd({
+  token: 'USDT',
+  fiat: 'USD',
+  side: 'sell',
+  priceType: 'fixed',
+  price: '1.001',
+  minAmount: '10',
+  maxAmount: '500',
+  quantity: '1000',
+  payMethodIds: [{ payMethodId: 'your-pay-method-id' }],
+  payTimeLimit: '15',
+  remark: 'Fast release, 24/7 online',
+});
+console.log('Ad ID:', newAd.data.advId);
+```
+
+---
+
+## Broker Management
+
+Broker endpoints are exclusively for master accounts with an **ND Broker** user type. All broker methods have a rate limit of 20 req/sec/UID.
+
+### createBrokerSubAccount(params)
+
+Creates a new sub-account under the broker master account.
+
+**Endpoint:** `POST /api/v3/broker/create-sub`
+
+<ParamField body="subaccountName" type="string" required>
+  Username for the new broker sub-account.
+</ParamField>
+
+<ParamField body="label" type="string" required>
+  A display label for the sub-account.
+</ParamField>
+
+```typescript
+const brokerSub = await client.createBrokerSubAccount({
+  subaccountName: 'client-001',
+  label: 'Client Account 1',
+});
+console.log('Broker sub UID:', brokerSub.data.subUid);
+```
+
+---
+
+### getBrokerSubAccountList(params)
+
+Returns a paginated list of all broker-managed sub-accounts, optionally filtered by status.
+
+**Endpoint:** `GET /api/v3/broker/sub-list`
+
+<ParamField query="limit" type="string">
+  Max results per page.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Pagination cursor.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by account status: `normal` or `freeze`.
+</ParamField>
+
+```typescript
+const brokerSubs = await client.getBrokerSubAccountList({
+  limit: '50',
+  status: 'normal',
+});
+console.log('Broker subs:', brokerSubs.data.subList?.length);
+```
+
+---
+
+## Complete Earn & Loan Example
+
+```typescript
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.BITGET_API_KEY!,
+  apiSecret: process.env.BITGET_API_SECRET!,
+  apiPass: process.env.BITGET_API_PASS!,
+});
+
+async function earnAndLoanExample() {
+  // --- Earn ---
+  // List available products
+  const products = await client.getEarnEliteProducts();
+  const product = products.data[0];
+  console.log('Available product:', product.productId);
+
+  // Subscribe to earn product
+  const subscription = await client.subscribeEarnElite({
+    productSubId: product.productId,
+    amount: '100',
+    paymentAccount: 'unified',
+  });
+  console.log('Subscribed, order ID:', subscription.data.orderId);
+
+  // --- Loans ---
+  // Check available loan coins
+  const loanCoins = await client.getLoanCoins({ coin: 'USDT' });
+  console.log('Loan coins:', loanCoins.data);
+
+  // Borrow USDT against BTC collateral
+  const loan = await client.loanBorrow({
+    loanCoin: 'USDT',
+    pledgeCoin: 'BTC',
+    daily: 'FLEXIBLE',
+    loanAmount: '500',
+  });
+  console.log('Loan order ID:', loan.data.orderId);
+
+  // Check active loans
+  const activeLoans = await client.getLoanBorrowOngoing({
+    orderId: loan.data.orderId,
+  });
+  console.log('Active loan LTV:', activeLoans.data[0]?.currentLTV);
+
+  // Repay the loan
+  await client.loanRepay({
+    orderId: loan.data.orderId,
+    method: 'borrowed_coin',
+    repayAll: 'yes',
+  });
+  console.log('Loan repaid');
+}
+
+earnAndLoanExample().catch(console.error);
+```

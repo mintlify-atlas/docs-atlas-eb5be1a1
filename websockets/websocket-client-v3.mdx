@@ -1,0 +1,309 @@
+---
+title: "WebsocketClientV3: Bitget UTA Real-Time Data Streams"
+sidebarTitle: "WS Client V3"
+description: "Subscribe to Bitget V3/UTA WebSocket topics including ticker, kline, order book, account, positions, orders, and fills using WebsocketClientV3."
+---
+
+`WebsocketClientV3` is the WebSocket client for Bitget's Unified Trading Account (V3) real-time data streams. It manages two persistent connections — one public and one private — and handles authentication, heartbeats, and automatic reconnection transparently. If your Bitget account has been upgraded to Unified Account mode, this is the client you should use for both market data and private account events.
+
+## Installation
+
+```bash
+npm install bitget-api
+```
+
+## Instantiation
+
+<Steps>
+
+### Public-only client
+
+For market data topics that require no credentials, pass an empty options object:
+
+```typescript
+import { WebsocketClientV3 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({});
+```
+
+### Authenticated client
+
+For private topics (account, orders, positions, fills), supply your API key, secret, and passphrase:
+
+```typescript
+import { WebsocketClientV3 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+```
+
+</Steps>
+
+## WS Key Map
+
+Every subscribe call requires a `wsKey` that tells the client which underlying connection to use. Always import and use the `WS_KEY_MAP` constants — never hard-code the string values:
+
+```typescript
+import { WS_KEY_MAP } from 'bitget-api';
+
+// WS_KEY_MAP.v3Public  → 'v3Public'   (wss://ws.bitget.com/v3/ws/public)
+// WS_KEY_MAP.v3Private → 'v3Private'  (wss://ws.bitget.com/v3/ws/private)
+```
+
+<Tip>
+  Use `WS_KEY_MAP.v3Public` when subscribing to market data topics such as
+  `ticker`, `kline`, `books`, and `publicTrade`. Use `WS_KEY_MAP.v3Private` for
+  all account-level topics that require authentication.
+</Tip>
+
+## Event Listeners
+
+Set up event listeners before calling `subscribe()` so no messages are missed:
+
+```typescript
+import { DefaultLogger, WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3(
+  { apiKey: '...', apiSecret: '...', apiPass: '...' },
+  DefaultLogger,
+);
+
+// Real-time data updates from subscribed topics
+wsClient.on('update', (data) => {
+  console.log('Data update received:', JSON.stringify(data, null, 2));
+});
+
+// A WebSocket connection was opened
+wsClient.on('open', (data) => {
+  console.log('WS connection opened:', data.wsKey);
+});
+
+// Server acknowledged a subscribe/unsubscribe request
+wsClient.on('response', (data) => {
+  console.log('WS response:', JSON.stringify(data, null, 2));
+});
+
+// Connection lost — automatic reconnect is starting
+wsClient.on('reconnect', ({ wsKey }) => {
+  console.log('WS automatically reconnecting...', wsKey);
+});
+
+// Connection was successfully restored
+wsClient.on('reconnected', (data) => {
+  console.log('WS reconnected:', data?.wsKey);
+});
+
+// Private connection was successfully authenticated
+wsClient.on('authenticated', (data) => {
+  console.log('WS authenticated:', data?.wsKey);
+});
+
+// An error or protocol-level exception was received
+wsClient.on('exception', (data) => {
+  console.error('WS exception:', data);
+});
+```
+
+### Event Reference
+
+| Event           | When it fires                                                                 |
+| --------------- | ----------------------------------------------------------------------------- |
+| `update`        | A subscribed topic pushed new data (ticker tick, order book update, fill, etc.) |
+| `open`          | A WebSocket connection was opened or re-opened                                |
+| `response`      | The server sent a non-data frame (subscribe confirmation, login acknowledgement) |
+| `reconnect`     | The client detected a lost connection and is about to reconnect               |
+| `reconnected`   | The connection was successfully re-established after a drop                   |
+| `authenticated` | The private connection completed the login handshake                          |
+| `exception`     | A server-side error event or WS API error response was received               |
+
+## `subscribe()` Method
+
+```typescript
+wsClient.subscribe(
+  requests: WsTopicRequest<WsTopicV3> | WsTopicRequest<WsTopicV3>[],
+  wsKey: WsKey,
+): Promise<unknown>
+```
+
+Pass a single topic object or an array of topic objects, followed by the appropriate `WS_KEY_MAP` value. Each topic object has the shape:
+
+```typescript
+{
+  topic: WsTopicV3;       // e.g. 'ticker', 'kline', 'account', 'order'
+  payload?: {
+    instType: BitgetInstTypeV3; // e.g. 'spot', 'usdt-futures', 'UTA'
+    symbol?: string;            // required for market-data topics
+  };
+}
+```
+
+Subscriptions are persisted in an internal store. On reconnect the client automatically resubscribes to every topic without any extra code.
+
+## Public Topics (`WsPublicTopicV3`)
+
+Public topics carry market data and require no authentication. Valid values for `instType` on public topics are `'spot'`, `'usdt-futures'`, `'coin-futures'`, and `'usdc-futures'`.
+
+| Topic         | Description                                   |
+| ------------- | --------------------------------------------- |
+| `ticker`      | Best bid/ask and last-trade price snapshot    |
+| `kline`       | OHLCV candlestick data                        |
+| `books`       | Full order book depth updates                 |
+| `publicTrade` | Individual trade executions in real time       |
+
+### Subscribe Example — Ticker & Kline
+
+```typescript
+import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({});
+
+wsClient.on('update', (data) => {
+  console.log('Market data:', JSON.stringify(data, null, 2));
+});
+
+// Single ticker subscription
+wsClient.subscribe(
+  {
+    topic: 'ticker',
+    payload: {
+      instType: 'spot',
+      symbol: 'BTCUSDT',
+    },
+  },
+  WS_KEY_MAP.v3Public,
+);
+
+// Multiple subscriptions in one call
+wsClient.subscribe(
+  [
+    {
+      topic: 'ticker',
+      payload: { instType: 'spot', symbol: 'ETHUSDT' },
+    },
+    {
+      topic: 'kline',
+      payload: { instType: 'usdt-futures', symbol: 'BTCUSDT' },
+    },
+    {
+      topic: 'books',
+      payload: { instType: 'spot', symbol: 'BTCUSDT' },
+    },
+    {
+      topic: 'publicTrade',
+      payload: { instType: 'coin-futures', symbol: 'BTCUSD' },
+    },
+  ],
+  WS_KEY_MAP.v3Public,
+);
+```
+
+## Private Topics (`WsPrivateTopicV3`)
+
+Private topics carry account-level events and require authentication credentials to be provided at construction. All private topics use `instType: 'UTA'`.
+
+| Topic            | Description                                         |
+| ---------------- | --------------------------------------------------- |
+| `account`        | Balance and asset changes for the unified account   |
+| `position`       | Position updates (open, close, size changes)        |
+| `order`          | Order state changes (new, filled, cancelled, etc.)  |
+| `fill`           | Individual fill (execution) events                  |
+| `strategy-order` | Strategy/algo order lifecycle events                |
+
+<Note>
+  All private V3 topics use `instType: 'UTA'`. This is different from public
+  topics where `instType` specifies the product class (e.g. `'spot'`,
+  `'usdt-futures'`). Account-level events across all product types are
+  aggregated into the single `UTA` instType.
+</Note>
+
+### Subscribe Example — Account & Orders
+
+```typescript
+import { WebsocketClientV3, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+wsClient.on('update', (data) => {
+  console.log('Private update:', JSON.stringify(data, null, 2));
+});
+
+wsClient.on('authenticated', (data) => {
+  console.log('Authenticated on:', data?.wsKey);
+});
+
+// All account-level topics use instType: 'UTA'
+const ACCOUNT_INST_TYPE = 'UTA';
+const ACCOUNT_WS_KEY = WS_KEY_MAP.v3Private;
+
+wsClient.subscribe(
+  [
+    {
+      topic: 'account',
+      payload: { instType: ACCOUNT_INST_TYPE },
+    },
+    {
+      topic: 'position',
+      payload: { instType: ACCOUNT_INST_TYPE },
+    },
+    {
+      topic: 'order',
+      payload: { instType: ACCOUNT_INST_TYPE },
+    },
+    {
+      topic: 'fill',
+      payload: { instType: ACCOUNT_INST_TYPE },
+    },
+  ],
+  ACCOUNT_WS_KEY,
+);
+```
+
+## `connectAll()` Method
+
+By default, the client opens a connection lazily when the first `subscribe()` call is made. Call `connectAll()` to pre-warm both the public and private connections immediately:
+
+```typescript
+// Returns an array of promises — one per connection
+const [privateConn, publicConn] = wsClient.connectAll();
+
+await Promise.all([privateConn, publicConn]);
+console.log('Both connections ready');
+```
+
+## `unsubscribe()` Method
+
+Remove topics from the active connection and the internal subscription store:
+
+```typescript
+wsClient.unsubscribe(
+  {
+    topic: 'ticker',
+    payload: { instType: 'spot', symbol: 'BTCUSDT' },
+  },
+  WS_KEY_MAP.v3Public,
+);
+```
+
+## Auto-Reconnect Behaviour
+
+`WebsocketClientV3` automatically monitors connection health via a ping/pong heartbeat. If the pong response does not arrive within the configured `pongTimeout` window, the connection is closed and a reconnect is scheduled after `reconnectTimeout` milliseconds. All previously subscribed topics are resubscribed automatically once the new connection is authenticated. The `reconnect` and `reconnected` events let you track this lifecycle.
+
+## Demo Trading
+
+To connect to Bitget's demo trading WebSocket environment, set `demoTrading: true`:
+
+```typescript
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.DEMO_API_KEY,
+  apiSecret: process.env.DEMO_API_SECRET,
+  apiPass: process.env.DEMO_API_PASS,
+  demoTrading: true,
+});
+```

@@ -1,0 +1,72 @@
+---
+title: "Bitget API SDK: Node.js & TypeScript Client"
+sidebarTitle: "Introduction"
+description: "bitget-api is a professional Node.js and TypeScript SDK for Bitget's REST APIs and WebSockets, with full TypeScript types and browser support."
+---
+
+`bitget-api` is a professional, production-grade Node.js and TypeScript SDK that gives you complete programmatic access to Bitget's trading platform. Whether you need to query market data, manage orders, stream real-time prices via WebSocket, or build fully automated trading systems, this SDK handles the heavy lifting — authentication, request signing, connection management, and type safety — so you can focus on your trading logic.
+
+<Note>
+  If your Bitget account has been upgraded to the **Unified Trading Account (UTA)**, use the V3 clients (`RestClientV3`, `WebsocketClientV3`). If you are still on a classic account, use the V2 clients (`RestClientV2`, `WebsocketClientV2`). When in doubt, check your account type in the Bitget dashboard.
+</Note>
+
+## Client Classes
+
+The SDK ships five dedicated client classes, each targeting a specific API generation or connection type:
+
+| Class | Purpose |
+|---|---|
+| `RestClientV3` | V3/UTA REST APIs — recommended for Unified Trading Account users |
+| `WebsocketClientV3` | Real-time WebSocket streams for V3/UTA (public & private) |
+| `WebsocketAPIClient` | REST-like order placement over V3/UTA WebSocket API |
+| `RestClientV2` | Classic V2 REST APIs |
+| `WebsocketClientV2` | Real-time WebSocket streams for V2 (public & private) |
+
+### V3 vs V2: Which Should I Use?
+
+Bitget introduced the **Unified Trading Account (UTA)** alongside its V3 API generation. The UTA consolidates spot, margin, and futures positions under a single account, providing unified margin and a streamlined API surface.
+
+- **Use V3** (`RestClientV3`, `WebsocketClientV3`) if your Bitget account is on the Unified Trading Account. V3 is the recommended path for all new integrations.
+- **Use V2** (`RestClientV2`, `WebsocketClientV2`) if your account has not yet been upgraded to UTA. The V2 API remains fully supported.
+
+## Key Features
+
+- **Complete TypeScript support** — every request parameter and API response is strongly typed, giving you full IntelliSense and compile-time safety.
+- **Robust WebSocket integration** — automatic reconnect-then-resubscribe workflows, configurable heartbeats, and `reconnected` event emission mean your streams stay live without manual intervention.
+- **HMAC and RSA authentication** — both signing methods are supported out of the box. RSA is detected automatically when the secret includes a `PRIVATE KEY` header.
+- **Custom sign function** — inject Node's native `createHmac` (or any other implementation) via `customSignMessageFn` for latency-sensitive environments.
+- **Demo trading support** — set `demoTrading: true` to point all requests at Bitget's paper trading environment, with no code changes required elsewhere.
+- **Browser support** — a webpack bundle ships with the package for use in frontend applications.
+- **Over 100 integration tests** — every release is validated against real API calls and live WebSocket connections before being published to npm.
+- **Proxy support** — pass proxy configuration through the underlying axios integration.
+- **Officially listed** — recognised as a Node.js SDK in Bitget's official API documentation.
+
+## Quick Navigation
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install the SDK and make your first REST call and WebSocket subscription in under five minutes.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Configure API key credentials, choose between HMAC and RSA signing, and use environment variables safely.
+  </Card>
+  <Card title="REST Client V3" icon="code" href="/rest/rest-client-v3">
+    Explore the full V3/UTA REST client — methods, parameters, and response types for the Unified Trading Account.
+  </Card>
+  <Card title="WebSocket Client V3" icon="bolt" href="/websockets/websocket-client-v3">
+    Subscribe to real-time price streams, order updates, and account events using the V3 WebSocket client.
+  </Card>
+</CardGroup>
+
+## Related Projects
+
+`bitget-api` is part of the [Siebly.io](https://siebly.io/) ecosystem — a suite of high-quality, actively maintained Node.js SDKs for major crypto exchanges. If you trade across multiple venues, you can use the same patterns and familiar API across all of them:
+
+- **[bybit-api](https://www.npmjs.com/package/bybit-api)** — Bybit REST & WebSocket SDK
+- **[okx-api](https://www.npmjs.com/package/okx-api)** — OKX REST & WebSocket SDK
+- **[binance](https://www.npmjs.com/package/binance)** — Binance REST & WebSocket SDK
+- **[gateio-api](https://www.npmjs.com/package/gateio-api)** — Gate.com REST & WebSocket SDK
+- **[kucoin-api](https://www.npmjs.com/package/kucoin-api)** — KuCoin REST & WebSocket SDK
+- **[coinbase-api](https://www.npmjs.com/package/coinbase-api)** — Coinbase REST & WebSocket SDK
+
+Community discussion and collaboration happen in the [Node.js Algo Traders](https://t.me/nodetraders) Telegram group. Follow [@sieblyio](https://x.com/sieblyio) on X/Twitter for release announcements.

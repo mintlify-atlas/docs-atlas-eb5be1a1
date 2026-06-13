@@ -1,0 +1,289 @@
+---
+title: "WebsocketClientV2: Bitget Classic WebSocket Streams"
+sidebarTitle: "WS Client V2"
+description: "Subscribe to Bitget V2 WebSocket topics for spot and futures market data and private account events using WebsocketClientV2."
+---
+
+`WebsocketClientV2` provides real-time WebSocket streams for Bitget's classic (non-UTA) spot and futures accounts. It handles two separate connections — a public one for market data and a private one for account events — and takes care of authentication, heartbeat management, and automatic reconnection for you. If your account has **not** been upgraded to Unified Account mode, this is the correct client for live market data and order tracking.
+
+<Note>
+  If your Bitget account has been upgraded to Unified Account (UTA) mode, use
+  [`WebsocketClientV3`](/websockets/websocket-client-v3) instead, which supports
+  the V3 topic set and account-level aggregation.
+</Note>
+
+## Installation
+
+```bash
+npm install bitget-api
+```
+
+## Instantiation
+
+<Steps>
+
+### Public-only client
+
+For read-only market data topics, no credentials are required:
+
+```typescript
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({});
+```
+
+### Authenticated client
+
+Provide API credentials to access private account topics:
+
+```typescript
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+```
+
+### Demo trading client
+
+Set `demoTrading: true` to route connections to Bitget's paper-trading environment:
+
+```typescript
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({
+  apiKey: process.env.DEMO_API_KEY,
+  apiSecret: process.env.DEMO_API_SECRET,
+  apiPass: process.env.DEMO_API_PASS,
+  demoTrading: true,
+});
+```
+
+</Steps>
+
+## Event Listeners
+
+Register listeners before subscribing to any topics to ensure no messages are dropped:
+
+```typescript
+import { DefaultLogger, WebsocketClientV2, WS_KEY_MAP } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2(
+  { apiKey: '...', apiSecret: '...', apiPass: '...' },
+  DefaultLogger,
+);
+
+// Real-time data from all subscribed topics
+wsClient.on('update', (data) => {
+  console.log('WS raw message received:', data);
+});
+
+// A WebSocket connection was opened
+wsClient.on('open', (data) => {
+  console.log('WS connection opened:', data.wsKey);
+});
+
+// Server acknowledged a subscribe/unsubscribe or sent a protocol frame
+wsClient.on('response', (data) => {
+  console.log('WS response:', JSON.stringify(data, null, 2));
+});
+
+// Connection lost — automatic reconnect is starting
+wsClient.on('reconnect', ({ wsKey }) => {
+  console.log('WS automatically reconnecting...', wsKey);
+});
+
+// Connection was successfully restored
+wsClient.on('reconnected', (data) => {
+  console.log('WS reconnected:', data?.wsKey);
+});
+
+// The private connection completed authentication
+wsClient.on('authenticated', (data) => {
+  console.log('WS authenticated:', data);
+});
+
+// A server-side error or exception was received
+wsClient.on('exception', (data) => {
+  console.error('WS error:', data);
+});
+```
+
+### Event Reference
+
+| Event           | When it fires                                                                   |
+| --------------- | ------------------------------------------------------------------------------- |
+| `update`        | A subscribed topic pushed new data (ticker, candle, order book, account, etc.) |
+| `open`          | A WebSocket connection was opened or re-opened                                  |
+| `response`      | Non-data server frame (subscription confirmation, login acknowledgement)        |
+| `reconnect`     | The client detected a dropped connection and is about to reconnect              |
+| `reconnected`   | The connection was successfully re-established                                  |
+| `authenticated` | The private connection completed the login handshake                            |
+| `exception`     | A server-side error event was received                                          |
+
+## `subscribeTopic()` Method
+
+`WebsocketClientV2` exposes a convenient helper that automatically routes subscriptions to the correct connection (public or private) based on the topic name:
+
+```typescript
+wsClient.subscribeTopic(
+  instType: BitgetInstTypeV2,  // e.g. 'SPOT', 'USDT-FUTURES'
+  topic: WsTopicV2,            // e.g. 'ticker', 'orders', 'account'
+  coin?: string,               // symbol or 'default' for account-level topics
+): Promise<unknown>
+```
+
+The `coin` parameter is the instrument ID for market data topics (e.g. `'BTCUSDT'`). For account-level topics such as `account`, it defaults to `'default'` and can be omitted.
+
+## Public Topics (`WsPublicTopicV2`)
+
+Public topics stream market data and require no authentication. Use `instType` values such as `'SPOT'`, `'USDT-FUTURES'`, `'COIN-FUTURES'`, or `'USDC-FUTURES'`.
+
+| Topic            | Description                                       |
+| ---------------- | ------------------------------------------------- |
+| `ticker`         | Best bid/ask and last-trade snapshot              |
+| `trade`          | Individual trade executions                       |
+| `books`          | Full order book depth updates                     |
+| `books1`         | Best bid/ask order book (level 1)                 |
+| `books5`         | Top 5 bids and asks                               |
+| `books15`        | Top 15 bids and asks                              |
+| `candle1m`       | 1-minute OHLCV candlestick                        |
+| `candle5m`       | 5-minute OHLCV candlestick                        |
+| `candle15m`      | 15-minute OHLCV candlestick                       |
+| `candle30m`      | 30-minute OHLCV candlestick                       |
+| `candle1H`       | 1-hour OHLCV candlestick                          |
+| `candle4H`       | 4-hour OHLCV candlestick                          |
+| `candle6H`       | 6-hour OHLCV candlestick                          |
+| `candle12H`      | 12-hour OHLCV candlestick                         |
+| `candle1D`       | 1-day OHLCV candlestick                           |
+| `candle3D`       | 3-day OHLCV candlestick                           |
+| `candle1W`       | 1-week OHLCV candlestick                          |
+| `candle1M`       | 1-month OHLCV candlestick                         |
+| `index-price`    | Index price (margin trading only)                 |
+
+### Public Subscribe Example
+
+```typescript
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({});
+
+wsClient.on('update', (data) => {
+  console.log('Market data update:', JSON.stringify(data, null, 2));
+});
+
+const symbol = 'BTCUSDT';
+
+// Spot ticker
+wsClient.subscribeTopic('SPOT', 'ticker', symbol);
+
+// Spot 1-minute candles
+wsClient.subscribeTopic('SPOT', 'candle1m', symbol);
+
+// Spot order book
+wsClient.subscribeTopic('SPOT', 'books', symbol);
+
+// USDT-Futures ticker
+wsClient.subscribeTopic('USDT-FUTURES', 'ticker', symbol);
+
+// USDT-Futures 1-hour candles
+wsClient.subscribeTopic('USDT-FUTURES', 'candle1H', symbol);
+```
+
+## Private Topics (`WsPrivateTopicV2`)
+
+Private topics stream account-level events and require API credentials. The client will authenticate the private connection automatically on the first private-topic subscription.
+
+| Topic               | Description                                              |
+| ------------------- | -------------------------------------------------------- |
+| `account`           | Spot/futures balance and asset changes                   |
+| `orders`            | Spot/futures order state changes                         |
+| `positions`         | Futures position updates                                 |
+| `orders-algo`       | Algo/plan order lifecycle events                         |
+| `positions-history` | Historical position close records                        |
+| `orders-crossed`    | Margin crossed-mode order updates                        |
+| `orders-isolated`   | Margin isolated-mode order updates                       |
+| `account-crossed`   | Margin crossed-mode account balance updates              |
+| `account-isolated`  | Margin isolated-mode account balance updates             |
+
+### Private Subscribe Example
+
+```typescript
+import { WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2({
+  apiKey: process.env.API_KEY,
+  apiSecret: process.env.API_SECRET,
+  apiPass: process.env.API_PASS,
+});
+
+wsClient.on('update', (data) => {
+  console.log('Private update:', JSON.stringify(data, null, 2));
+});
+
+wsClient.on('authenticated', (data) => {
+  console.log('Authenticated:', data);
+});
+
+// Spot account balance updates
+wsClient.subscribeTopic('SPOT', 'account');
+
+// USDT-Futures account balance updates
+wsClient.subscribeTopic('USDT-FUTURES', 'account');
+
+// USDC-Futures account balance updates
+wsClient.subscribeTopic('USDC-FUTURES', 'account');
+
+// USDT-Futures position updates
+wsClient.subscribeTopic('USDT-FUTURES', 'positions');
+
+// USDT-Futures order updates for a specific symbol
+wsClient.subscribeTopic('USDT-FUTURES', 'orders', 'BTCUSDT');
+
+// USDT-Futures algo/plan order updates
+wsClient.subscribeTopic('USDT-FUTURES', 'orders-algo');
+```
+
+## `connectAll()` Method
+
+Eagerly open both the public and private connections before the first subscription:
+
+```typescript
+const connections = wsClient.connectAll();
+await Promise.all(connections);
+console.log('Both V2 connections are ready');
+```
+
+## `unsubscribeTopic()` Method
+
+Remove an active subscription from the connection and the internal store:
+
+```typescript
+// Remove a specific futures position subscription
+wsClient.unsubscribeTopic('USDT-FUTURES', 'account');
+
+// Remove a symbol-level order subscription
+wsClient.unsubscribeTopic('USDT-FUTURES', 'orders', 'BTCUSDT');
+```
+
+## Low-Level `subscribe()` / `unsubscribe()`
+
+For advanced use cases you can bypass `subscribeTopic()` and call the lower-level methods directly, providing the `WsKey` explicitly:
+
+```typescript
+import { WebsocketClientV2, WS_KEY_MAP } from 'bitget-api';
+
+wsClient.subscribe(
+  {
+    topic: 'ticker',
+    payload: { instType: 'SPOT', instId: 'ETHUSDT' },
+  },
+  WS_KEY_MAP.v2Public,
+);
+```
+
+## Auto-Reconnect Behaviour
+
+The client sends periodic ping frames and expects pong responses within `pongTimeout` milliseconds. If the pong does not arrive the connection is torn down and a fresh one is opened after `reconnectTimeout` milliseconds. All subscriptions in the internal store are automatically replayed on reconnect — no manual intervention is needed. Listen to the `reconnect` and `reconnected` events to log or react to these lifecycle changes.

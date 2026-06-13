@@ -1,0 +1,212 @@
+---
+title: "Connect to Bitget Demo Trading Environment"
+sidebarTitle: "Demo Trading"
+description: "Use bitget-api with Bitget's simulated trading environment to test strategies safely, with separate API credentials for REST and WebSocket clients."
+---
+
+Bitget provides a simulated demo trading environment that lets you test strategies, verify order logic, and validate integrations without risking real funds. The `bitget-api` SDK supports demo trading natively — pass a single `demoTrading: true` flag when constructing any client and all REST requests and WebSocket connections are automatically routed to Bitget's demo endpoints. Because demo trading mirrors the live API surface exactly, every SDK method, subscription topic, and response shape works identically in both environments.
+
+<Warning>
+  Demo trading uses completely separate API keys from live trading. Never share credentials between the two environments — a live API key will not authenticate against demo endpoints, and vice versa.
+</Warning>
+
+## Setup
+
+<Steps>
+  <Step title="Create demo trading API keys">
+    Log in to your Bitget account and navigate to the [demo trading dashboard](https://www.bitget.com/en/demo-trading) to generate a dedicated set of API credentials (key, secret, and passphrase). Store them in environment variables separate from your live keys — for example, `DEMO_API_KEY`, `DEMO_API_SECRET`, and `DEMO_API_PASS`.
+  </Step>
+
+  <Step title="Enable demo mode on a REST client">
+    Pass `demoTrading: true` to `RestClientV3` or `RestClientV2`. This flag is part of `RestClientOptions` and routes all HTTP requests to Bitget's demo REST base URL:
+
+    ```typescript
+    import { RestClientV3 } from 'bitget-api';
+
+    const client = new RestClientV3({
+      apiKey: process.env.DEMO_API_KEY,
+      apiSecret: process.env.DEMO_API_SECRET,
+      apiPass: process.env.DEMO_API_PASS,
+      demoTrading: true,
+    });
+
+    // All calls now hit the demo trading environment
+    const account = await client.getFuturesAccountAssets({
+      productType: 'USDT-FUTURES',
+    });
+    console.log('Demo account assets:', account);
+    ```
+  </Step>
+
+  <Step title="Enable demo mode on a WebSocket client">
+    Pass `demoTrading: true` to `WebsocketClientV3` or `WebsocketClientV2`. All WebSocket connections, including private authenticated channels, are routed to the demo WebSocket URLs:
+
+    ```typescript
+    import { DefaultLogger, WebsocketClientV2 } from 'bitget-api';
+
+    const logger = {
+      ...DefaultLogger,
+      trace: (...params: any[]) => console.log('trace', ...params),
+    };
+
+    const wsClient = new WebsocketClientV2(
+      {
+        apiKey: process.env.DEMO_API_KEY,
+        apiSecret: process.env.DEMO_API_SECRET,
+        apiPass: process.env.DEMO_API_PASS,
+        demoTrading: true,
+      },
+      logger,
+    );
+
+    wsClient.on('update', (data) => {
+      console.log('WS raw message received:', data);
+    });
+
+    wsClient.on('open', (data) => {
+      console.log('WS connection opened:', data.wsKey);
+    });
+
+    wsClient.on('response', (data) => {
+      console.log('WS response:', JSON.stringify(data, null, 2));
+    });
+
+    wsClient.on('reconnect', ({ wsKey }) => {
+      console.log('WS automatically reconnecting...', wsKey);
+    });
+
+    wsClient.on('reconnected', (data) => {
+      console.log('WS reconnected:', data?.wsKey);
+    });
+
+    wsClient.on('exception', (data) => {
+      console.log('WS error:', data);
+    });
+
+    // Subscribe to a public spot ticker
+    wsClient.subscribeTopic('SPOT', 'ticker', 'BTCUSDT');
+
+    // Subscribe to a private futures account channel
+    wsClient.subscribeTopic('USDC-FUTURES', 'account');
+    ```
+  </Step>
+</Steps>
+
+## Full Client Examples
+
+<CodeGroup>
+
+```typescript REST — V3 Demo Client
+import { RestClientV3 } from 'bitget-api';
+
+const client = new RestClientV3({
+  apiKey: process.env.DEMO_API_KEY,
+  apiSecret: process.env.DEMO_API_SECRET,
+  apiPass: process.env.DEMO_API_PASS,
+  demoTrading: true,
+});
+
+async function runDemoStrategy() {
+  // Place a demo futures order — no real funds at risk
+  const order = await client.placeFuturesOrder({
+    symbol: 'BTCUSDT',
+    productType: 'USDT-FUTURES',
+    marginMode: 'crossed',
+    marginCoin: 'USDT',
+    size: '0.01',
+    side: 'buy',
+    orderType: 'market',
+    tradeSide: 'open',
+  });
+  console.log('Demo order placed:', order);
+}
+
+runDemoStrategy().catch(console.error);
+```
+
+```typescript REST — V2 Demo Client
+import { RestClientV2 } from 'bitget-api';
+
+const client = new RestClientV2({
+  apiKey: process.env.DEMO_API_KEY,
+  apiSecret: process.env.DEMO_API_SECRET,
+  apiPass: process.env.DEMO_API_PASS,
+  demoTrading: true,
+});
+
+async function runDemoStrategy() {
+  // Place a demo spot order — no real funds at risk
+  const order = await client.placeSpotOrder({
+    symbol: 'BTCUSDT',
+    side: 'buy',
+    orderType: 'market',
+    force: 'gtc',
+    size: '10',
+  });
+  console.log('Demo order placed:', order);
+}
+
+runDemoStrategy().catch(console.error);
+```
+
+```typescript WebSocket — V3 Demo Client
+import { WebsocketClientV3 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV3({
+  apiKey: process.env.DEMO_API_KEY,
+  apiSecret: process.env.DEMO_API_SECRET,
+  apiPass: process.env.DEMO_API_PASS,
+  demoTrading: true,
+});
+
+wsClient.on('update', (data) => console.log('Update:', data));
+wsClient.on('open', (data) => console.log('Opened:', data.wsKey));
+wsClient.on('exception', (data) => console.error('Error:', data));
+
+wsClient.subscribeTopic('USDT-FUTURES', 'ticker', 'BTCUSDT');
+wsClient.subscribeTopic('USDT-FUTURES', 'orders', 'BTCUSDT');
+```
+
+```typescript WebSocket — V2 Demo Client
+import { DefaultLogger, WebsocketClientV2 } from 'bitget-api';
+
+const wsClient = new WebsocketClientV2(
+  {
+    apiKey: process.env.DEMO_API_KEY,
+    apiSecret: process.env.DEMO_API_SECRET,
+    apiPass: process.env.DEMO_API_PASS,
+    demoTrading: true,
+  },
+  { ...DefaultLogger, trace: (...p: any[]) => console.log('trace', ...p) },
+);
+
+wsClient.on('update', (data) => console.log('Update:', data));
+wsClient.on('open', (data) => console.log('Opened:', data.wsKey));
+wsClient.on('exception', (data) => console.error('Error:', data));
+
+wsClient.subscribeTopic('SPOT', 'ticker', 'BTCUSDT');
+wsClient.subscribeTopic('USDC-FUTURES', 'account');
+```
+
+</CodeGroup>
+
+## The `demoTrading` Option
+
+`demoTrading` is a field on the `RestClientOptions` interface and is supported by all five client classes in the SDK:
+
+| Client class | Import |
+|---|---|
+| `RestClientV3` | `import { RestClientV3 } from 'bitget-api'` |
+| `RestClientV2` | `import { RestClientV2 } from 'bitget-api'` |
+| `WebsocketClientV3` | `import { WebsocketClientV3 } from 'bitget-api'` |
+| `WebsocketClientV2` | `import { WebsocketClientV2 } from 'bitget-api'` |
+
+When `demoTrading: true` is set on a REST client, it overrides the base URL to point to Bitget's demo REST API. When set on a WebSocket client, all WebSocket connections (both public and private) connect to the demo WebSocket endpoints.
+
+<Note>
+  Demo trading mirrors the live API surface completely — all endpoints, parameters, response shapes, and WebSocket topics are identical. Any code that works in demo will work in production once you swap in live credentials and remove the `demoTrading` flag.
+</Note>
+
+<Tip>
+  Always develop and validate your full strategy in demo trading before switching to live credentials. This includes order placement, cancellation, position management, WebSocket subscription handling, and error recovery paths.
+</Tip>
